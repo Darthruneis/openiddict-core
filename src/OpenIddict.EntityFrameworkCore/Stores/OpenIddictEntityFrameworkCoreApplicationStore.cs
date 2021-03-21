@@ -124,14 +124,7 @@ namespace OpenIddict.EntityFrameworkCore
         /// </summary>
         private DbSet<TToken> Tokens => Context.Set<TToken>();
 
-        /// <summary>
-        /// Determines the number of applications that exist in the database.
-        /// </summary>
-        /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
-        /// <returns>
-        /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation,
-        /// whose result returns the number of applications in the database.
-        /// </returns>
+        /// <inheritdoc/>
         public virtual async ValueTask<long> CountAsync(CancellationToken cancellationToken)
             => await Applications.AsQueryable().LongCountAsync(cancellationToken);
 
@@ -314,7 +307,7 @@ namespace OpenIddict.EntityFrameworkCore
             {
                 var applications = (from application in Applications.AsTracking()
                                     where application.PostLogoutRedirectUris!.Contains(address)
-                                    select application).AsAsyncEnumerable();
+                                    select application).AsAsyncEnumerable(cancellationToken);
 
                 await foreach (var application in applications)
                 {
@@ -348,7 +341,7 @@ namespace OpenIddict.EntityFrameworkCore
             {
                 var applications = (from application in Applications.AsTracking()
                                     where application.RedirectUris!.Contains(address)
-                                    select application).AsAsyncEnumerable();
+                                    select application).AsAsyncEnumerable(cancellationToken);
 
                 await foreach (var application in applications)
                 {
@@ -455,7 +448,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var property in document.RootElement.EnumerateObject())
                 {
-                    builder[CultureInfo.GetCultureInfo(property.Name)] = property.Value.GetString();
+                    var value = property.Value.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder[CultureInfo.GetCultureInfo(property.Name)] = value;
                 }
 
                 return builder.ToImmutable();
@@ -501,7 +500,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    builder.Add(element.GetString());
+                    var value = element.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder.Add(value);
                 }
 
                 return builder.ToImmutable();
@@ -536,7 +541,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    builder.Add(element.GetString());
+                    var value = element.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder.Add(value);
                 }
 
                 return builder.ToImmutable();
@@ -606,7 +617,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    builder.Add(element.GetString());
+                    var value = element.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder.Add(value);
                 }
 
                 return builder.ToImmutable();
@@ -641,7 +658,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    builder.Add(element.GetString());
+                    var value = element.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder.Add(value);
                 }
 
                 return builder.ToImmutable();
@@ -680,7 +703,7 @@ namespace OpenIddict.EntityFrameworkCore
                 query = query.Take(count.Value);
             }
 
-            return query.AsAsyncEnumerable();
+            return query.AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -693,7 +716,7 @@ namespace OpenIddict.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(query));
             }
 
-            return query(Applications.AsTracking(), state).AsAsyncEnumerable();
+            return query(Applications.AsTracking(), state).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>

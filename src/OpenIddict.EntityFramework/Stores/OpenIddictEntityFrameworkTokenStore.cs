@@ -389,7 +389,12 @@ namespace OpenIddict.EntityFramework
                 throw new ArgumentNullException(nameof(token));
             }
 
-            return new ValueTask<DateTimeOffset?>(token.CreationDate);
+            if (token.CreationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.CreationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -400,7 +405,12 @@ namespace OpenIddict.EntityFramework
                 throw new ArgumentNullException(nameof(token));
             }
 
-            return new ValueTask<DateTimeOffset?>(token.ExpirationDate);
+            if (token.ExpirationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.ExpirationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -458,6 +468,22 @@ namespace OpenIddict.EntityFramework
             });
 
             return new ValueTask<ImmutableDictionary<string, JsonElement>>(properties);
+        }
+
+        /// <inheritdoc/>
+        public virtual ValueTask<DateTimeOffset?> GetRedemptionDateAsync(TToken token, CancellationToken cancellationToken)
+        {
+            if (token is null)
+            {
+                throw new ArgumentNullException(nameof(token));
+            }
+
+            if (token.RedemptionDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.RedemptionDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -581,8 +607,8 @@ namespace OpenIddict.EntityFramework
             }
 
             // Note: to avoid sending too many queries, the maximum number of elements
-            // that can be removed by a single call to PruneAsync() is limited to 50000.
-            for (var offset = 0; offset < 50_000; offset += 1_000)
+            // that can be removed by a single call to PruneAsync() is deliberately limited.
+            for (var index = 0; index < 1_000; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -594,12 +620,12 @@ namespace OpenIddict.EntityFramework
 
                 var tokens = await
                     (from token in Tokens
-                     where token.CreationDate < threshold
+                     where token.CreationDate < threshold.UtcDateTime
                      where (token.Status != Statuses.Inactive && token.Status != Statuses.Valid) ||
                            (token.Authorization != null && token.Authorization.Status != Statuses.Valid) ||
-                            token.ExpirationDate < DateTimeOffset.UtcNow
+                            token.ExpirationDate < DateTime.UtcNow
                      orderby token.Id
-                     select token).Skip(offset).Take(1_000).ToListAsync(cancellationToken);
+                     select token).Take(1_000).ToListAsync(cancellationToken);
 
                 if (tokens.Count == 0)
                 {
@@ -709,7 +735,7 @@ namespace OpenIddict.EntityFramework
                 throw new ArgumentNullException(nameof(token));
             }
 
-            token.CreationDate = date;
+            token.CreationDate = date?.UtcDateTime;
 
             return default;
         }
@@ -722,7 +748,7 @@ namespace OpenIddict.EntityFramework
                 throw new ArgumentNullException(nameof(token));
             }
 
-            token.ExpirationDate = date;
+            token.ExpirationDate = date?.UtcDateTime;
 
             return default;
         }
@@ -775,6 +801,19 @@ namespace OpenIddict.EntityFramework
             writer.Flush();
 
             token.Properties = Encoding.UTF8.GetString(stream.ToArray());
+
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public virtual ValueTask SetRedemptionDateAsync(TToken token, DateTimeOffset? date, CancellationToken cancellationToken)
+        {
+            if (token is null)
+            {
+                throw new ArgumentNullException(nameof(token));
+            }
+
+            token.RedemptionDate = date?.UtcDateTime;
 
             return default;
         }

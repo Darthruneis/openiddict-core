@@ -372,7 +372,12 @@ namespace OpenIddict.MongoDb
                 throw new ArgumentNullException(nameof(authorization));
             }
 
-            return new ValueTask<DateTimeOffset?>(authorization.CreationDate);
+            if (authorization.CreationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(authorization.CreationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -543,8 +548,8 @@ namespace OpenIddict.MongoDb
                        select authorization.Id).ToListAsync(cancellationToken);
 
             // Note: to avoid generating delete requests with very large filters, a buffer is used here and the
-            // maximum number of elements that can be removed by a single call to PruneAsync() is limited to 50000.
-            foreach (var buffer in Buffer(identifiers.Take(50_000), 1_000))
+            // maximum number of elements that can be removed by a single call to PruneAsync() is deliberately limited.
+            foreach (var buffer in Buffer(identifiers.Take(1_000_000), 1_000))
             {
                 await collection.DeleteManyAsync(authorization => buffer.Contains(authorization.Id), cancellationToken);
             }
@@ -659,12 +664,12 @@ namespace OpenIddict.MongoDb
 
             if (scopes.IsDefaultOrEmpty)
             {
-                authorization.Scopes = ImmutableArray.Create<string>();
+                authorization.Scopes = ImmutableList.Create<string>();
 
                 return default;
             }
 
-            authorization.Scopes = scopes;
+            authorization.Scopes = scopes.ToImmutableList();
 
             return default;
         }

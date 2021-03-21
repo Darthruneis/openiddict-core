@@ -175,6 +175,11 @@ namespace Microsoft.Extensions.DependencyInjection
 
             if (key.IsSupportedAlgorithm(SecurityAlgorithms.Aes256KW))
             {
+                if (key.KeySize != 256)
+                {
+                    throw new InvalidOperationException(SR.FormatID0283(256, key.KeySize));
+                }
+
                 return AddEncryptionCredentials(new EncryptingCredentials(key,
                     SecurityAlgorithms.Aes256KW, SecurityAlgorithms.Aes256CbcHmacSha512));
             }
@@ -212,29 +217,21 @@ namespace Microsoft.Extensions.DependencyInjection
             using var store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
             store.Open(OpenFlags.ReadWrite);
 
-            // Try to retrieve the development certificate from the specified store.
-            // If a certificate was found but is not yet or no longer valid, remove it
-            // from the store before creating and persisting a new encryption certificate.
-            var certificate = store.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, subject.Name, validOnly: false)
+            // Try to retrieve the existing development certificates from the specified store.
+            // If no valid existing certificate was found, create a new encryption certificate.
+            var certificates = store.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, subject.Name, validOnly: false)
                 .OfType<X509Certificate2>()
-                .SingleOrDefault();
+                .ToList();
 
-            if (certificate is not null && (certificate.NotBefore > DateTime.Now || certificate.NotAfter < DateTime.Now))
+            if (!certificates.Any(certificate => certificate.NotBefore < DateTime.Now && certificate.NotAfter > DateTime.Now))
             {
-                store.Remove(certificate);
-                certificate = null;
-            }
-
 #if SUPPORTS_CERTIFICATE_GENERATION
-            // If no appropriate certificate can be found, generate and persist a new certificate in the specified store.
-            if (certificate is null)
-            {
                 using var algorithm = RSA.Create(keySizeInBits: 2048);
 
                 var request = new CertificateRequest(subject, algorithm, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
                 request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyEncipherment, critical: true));
 
-                certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(2));
+                var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(2));
 
                 // Note: setting the friendly name is not supported on Unix machines (including Linux and macOS).
                 // To ensure an exception is not thrown by the property setter, an OS runtime check is used here.
@@ -260,7 +257,7 @@ namespace Microsoft.Extensions.DependencyInjection
                         flags |= X509KeyStorageFlags.Exportable;
                     }
 
-                    certificate = new X509Certificate2(data, string.Empty, flags);
+                    certificates.Insert(0, certificate = new X509Certificate2(data, string.Empty, flags));
                 }
 
                 finally
@@ -269,12 +266,15 @@ namespace Microsoft.Extensions.DependencyInjection
                 }
 
                 store.Add(certificate);
+#else
+                throw new PlatformNotSupportedException(SR.GetResourceString(SR.ID0264));
+#endif
             }
 
-            return AddEncryptionCertificate(certificate);
-#else
-            throw new PlatformNotSupportedException(SR.GetResourceString(SR.ID0264));
-#endif
+            return Configure(options => options.EncryptionCredentials.AddRange(
+                from certificate in certificates
+                let key = new X509SecurityKey(certificate)
+                select new EncryptingCredentials(key, SecurityAlgorithms.RsaOAEP, SecurityAlgorithms.Aes256CbcHmacSha512)));
         }
 
         /// <summary>
@@ -302,19 +302,19 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentException(SR.GetResourceString(SR.ID0057), nameof(algorithm));
             }
 
-            switch (algorithm)
+            return algorithm switch
             {
-                case SecurityAlgorithms.Aes256KW:
-                    return AddEncryptionCredentials(new EncryptingCredentials(CreateSymmetricSecurityKey(256),
-                        algorithm, SecurityAlgorithms.Aes256CbcHmacSha512));
+                SecurityAlgorithms.Aes256KW
+                    => AddEncryptionCredentials(new EncryptingCredentials(CreateSymmetricSecurityKey(256),
+                        algorithm, SecurityAlgorithms.Aes256CbcHmacSha512)),
 
-                case SecurityAlgorithms.RsaOAEP:
-                case SecurityAlgorithms.RsaOaepKeyWrap:
-                    return AddEncryptionCredentials(new EncryptingCredentials(CreateRsaSecurityKey(2048),
-                        algorithm, SecurityAlgorithms.Aes256CbcHmacSha512));
+                SecurityAlgorithms.RsaOAEP or
+                SecurityAlgorithms.RsaOaepKeyWrap
+                    => AddEncryptionCredentials(new EncryptingCredentials(CreateRsaSecurityKey(2048),
+                        algorithm, SecurityAlgorithms.Aes256CbcHmacSha512)),
 
-                default: throw new InvalidOperationException(SR.GetResourceString(SR.ID0058));
-            }
+                _ => throw new InvalidOperationException(SR.GetResourceString(SR.ID0058)),
+            };
 
             static SymmetricSecurityKey CreateSymmetricSecurityKey(int size)
             {
@@ -649,29 +649,21 @@ namespace Microsoft.Extensions.DependencyInjection
             using var store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
             store.Open(OpenFlags.ReadWrite);
 
-            // Try to retrieve the development certificate from the specified store.
-            // If a certificate was found but is not yet or no longer valid, remove it
-            // from the store before creating and persisting a new signing certificate.
-            var certificate = store.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, subject.Name, validOnly: false)
+            // Try to retrieve the existing development certificates from the specified store.
+            // If no valid existing certificate was found, create a new signing certificate.
+            var certificates = store.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, subject.Name, validOnly: false)
                 .OfType<X509Certificate2>()
-                .SingleOrDefault();
+                .ToList();
 
-            if (certificate is not null && (certificate.NotBefore > DateTime.Now || certificate.NotAfter < DateTime.Now))
+            if (!certificates.Any(certificate => certificate.NotBefore < DateTime.Now && certificate.NotAfter > DateTime.Now))
             {
-                store.Remove(certificate);
-                certificate = null;
-            }
-
 #if SUPPORTS_CERTIFICATE_GENERATION
-            // If no appropriate certificate can be found, generate and persist a new certificate in the specified store.
-            if (certificate is null)
-            {
                 using var algorithm = RSA.Create(keySizeInBits: 2048);
 
                 var request = new CertificateRequest(subject, algorithm, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
                 request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, critical: true));
 
-                certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(2));
+                var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(2));
 
                 // Note: setting the friendly name is not supported on Unix machines (including Linux and macOS).
                 // To ensure an exception is not thrown by the property setter, an OS runtime check is used here.
@@ -697,7 +689,7 @@ namespace Microsoft.Extensions.DependencyInjection
                         flags |= X509KeyStorageFlags.Exportable;
                     }
 
-                    certificate = new X509Certificate2(data, string.Empty, flags);
+                    certificates.Insert(0, certificate = new X509Certificate2(data, string.Empty, flags));
                 }
 
                 finally
@@ -706,12 +698,15 @@ namespace Microsoft.Extensions.DependencyInjection
                 }
 
                 store.Add(certificate);
+#else
+                throw new PlatformNotSupportedException(SR.GetResourceString(SR.ID0264));
+#endif
             }
 
-            return AddSigningCertificate(certificate);
-#else
-            throw new PlatformNotSupportedException(SR.GetResourceString(SR.ID0264));
-#endif
+            return Configure(options => options.SigningCredentials.AddRange(
+                from certificate in certificates
+                let key = new X509SecurityKey(certificate)
+                select new SigningCredentials(key, SecurityAlgorithms.RsaSha256)));
         }
 
         /// <summary>
@@ -741,50 +736,49 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentException(SR.GetResourceString(SR.ID0057), nameof(algorithm));
             }
 
-            switch (algorithm)
+            return algorithm switch
             {
-                case SecurityAlgorithms.RsaSha256:
-                case SecurityAlgorithms.RsaSha384:
-                case SecurityAlgorithms.RsaSha512:
-                case SecurityAlgorithms.RsaSha256Signature:
-                case SecurityAlgorithms.RsaSha384Signature:
-                case SecurityAlgorithms.RsaSha512Signature:
-
-                case SecurityAlgorithms.RsaSsaPssSha256:
-                case SecurityAlgorithms.RsaSsaPssSha384:
-                case SecurityAlgorithms.RsaSsaPssSha512:
-                case SecurityAlgorithms.RsaSsaPssSha256Signature:
-                case SecurityAlgorithms.RsaSsaPssSha384Signature:
-                case SecurityAlgorithms.RsaSsaPssSha512Signature:
-                    return AddSigningCredentials(new SigningCredentials(CreateRsaSecurityKey(2048), algorithm));
+                SecurityAlgorithms.RsaSha256 or
+                SecurityAlgorithms.RsaSha384 or
+                SecurityAlgorithms.RsaSha512 or
+                SecurityAlgorithms.RsaSha256Signature or
+                SecurityAlgorithms.RsaSha384Signature or
+                SecurityAlgorithms.RsaSha512Signature or
+                SecurityAlgorithms.RsaSsaPssSha256 or
+                SecurityAlgorithms.RsaSsaPssSha384 or
+                SecurityAlgorithms.RsaSsaPssSha512 or
+                SecurityAlgorithms.RsaSsaPssSha256Signature or
+                SecurityAlgorithms.RsaSsaPssSha384Signature or
+                SecurityAlgorithms.RsaSsaPssSha512Signature
+                    => AddSigningCredentials(new SigningCredentials(CreateRsaSecurityKey(2048), algorithm)),
 
 #if SUPPORTS_ECDSA
-                case SecurityAlgorithms.EcdsaSha256:
-                case SecurityAlgorithms.EcdsaSha256Signature:
-                    return AddSigningCredentials(new SigningCredentials(new ECDsaSecurityKey(
-                        ECDsa.Create(ECCurve.NamedCurves.nistP256)), algorithm));
+                SecurityAlgorithms.EcdsaSha256 or
+                SecurityAlgorithms.EcdsaSha256Signature
+                    => AddSigningCredentials(new SigningCredentials(new ECDsaSecurityKey(
+                        ECDsa.Create(ECCurve.NamedCurves.nistP256)), algorithm)),
 
-                case SecurityAlgorithms.EcdsaSha384:
-                case SecurityAlgorithms.EcdsaSha384Signature:
-                    return AddSigningCredentials(new SigningCredentials(new ECDsaSecurityKey(
-                        ECDsa.Create(ECCurve.NamedCurves.nistP384)), algorithm));
+                SecurityAlgorithms.EcdsaSha384 or
+                SecurityAlgorithms.EcdsaSha384Signature
+                    => AddSigningCredentials(new SigningCredentials(new ECDsaSecurityKey(
+                        ECDsa.Create(ECCurve.NamedCurves.nistP384)), algorithm)),
 
-                case SecurityAlgorithms.EcdsaSha512:
-                case SecurityAlgorithms.EcdsaSha512Signature:
-                    return AddSigningCredentials(new SigningCredentials(new ECDsaSecurityKey(
-                        ECDsa.Create(ECCurve.NamedCurves.nistP521)), algorithm));
+                SecurityAlgorithms.EcdsaSha512 or
+                SecurityAlgorithms.EcdsaSha512Signature
+                    => AddSigningCredentials(new SigningCredentials(new ECDsaSecurityKey(
+                        ECDsa.Create(ECCurve.NamedCurves.nistP521)), algorithm)),
 #else
-                case SecurityAlgorithms.EcdsaSha256:
-                case SecurityAlgorithms.EcdsaSha384:
-                case SecurityAlgorithms.EcdsaSha512:
-                case SecurityAlgorithms.EcdsaSha256Signature:
-                case SecurityAlgorithms.EcdsaSha384Signature:
-                case SecurityAlgorithms.EcdsaSha512Signature:
-                    throw new PlatformNotSupportedException(SR.GetResourceString(SR.ID0069));
+                SecurityAlgorithms.EcdsaSha256 or
+                SecurityAlgorithms.EcdsaSha384 or
+                SecurityAlgorithms.EcdsaSha512 or
+                SecurityAlgorithms.EcdsaSha256Signature or
+                SecurityAlgorithms.EcdsaSha384Signature or
+                SecurityAlgorithms.EcdsaSha512Signature
+                    => throw new PlatformNotSupportedException(SR.GetResourceString(SR.ID0069)),
 #endif
 
-                default: throw new InvalidOperationException(SR.GetResourceString(SR.ID0058));
-            }
+                _ => throw new InvalidOperationException(SR.GetResourceString(SR.ID0058)),
+            };
 
             [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
                 Justification = "The generated RSA key is attached to the server options.")]
@@ -1017,7 +1011,18 @@ namespace Microsoft.Extensions.DependencyInjection
         /// </summary>
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder AllowAuthorizationCodeFlow()
-            => Configure(options => options.GrantTypes.Add(GrantTypes.AuthorizationCode));
+            => Configure(options =>
+            {
+                options.CodeChallengeMethods.Add(CodeChallengeMethods.Sha256);
+
+                options.GrantTypes.Add(GrantTypes.AuthorizationCode);
+
+                options.ResponseModes.Add(ResponseModes.FormPost);
+                options.ResponseModes.Add(ResponseModes.Fragment);
+                options.ResponseModes.Add(ResponseModes.Query);
+
+                options.ResponseTypes.Add(ResponseTypes.Code);
+            });
 
         /// <summary>
         /// Enables client credentials flow support. For more information about this
@@ -1051,6 +1056,28 @@ namespace Microsoft.Extensions.DependencyInjection
             => Configure(options => options.GrantTypes.Add(GrantTypes.DeviceCode));
 
         /// <summary>
+        /// Enables hybrid flow support. For more information
+        /// about this specific OpenID Connect flow, visit
+        /// http://openid.net/specs/openid-connect-core-1_0.html#HybridFlowAuth.
+        /// </summary>
+        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
+        public OpenIddictServerBuilder AllowHybridFlow()
+            => Configure(options =>
+            {
+                options.CodeChallengeMethods.Add(CodeChallengeMethods.Sha256);
+
+                options.GrantTypes.Add(GrantTypes.AuthorizationCode);
+                options.GrantTypes.Add(GrantTypes.Implicit);
+
+                options.ResponseModes.Add(ResponseModes.FormPost);
+                options.ResponseModes.Add(ResponseModes.Fragment);
+
+                options.ResponseTypes.Add(ResponseTypes.Code + ' ' + ResponseTypes.IdToken);
+                options.ResponseTypes.Add(ResponseTypes.Code + ' ' + ResponseTypes.IdToken + ' ' + ResponseTypes.Token);
+                options.ResponseTypes.Add(ResponseTypes.Code + ' ' + ResponseTypes.Token);
+            });
+
+        /// <summary>
         /// Enables implicit flow support. For more information
         /// about this specific OAuth 2.0/OpenID Connect flow, visit
         /// https://tools.ietf.org/html/rfc6749#section-4.2 and
@@ -1058,7 +1085,25 @@ namespace Microsoft.Extensions.DependencyInjection
         /// </summary>
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder AllowImplicitFlow()
-            => Configure(options => options.GrantTypes.Add(GrantTypes.Implicit));
+            => Configure(options =>
+            {
+                options.GrantTypes.Add(GrantTypes.Implicit);
+
+                options.ResponseModes.Add(ResponseModes.FormPost);
+                options.ResponseModes.Add(ResponseModes.Fragment);
+
+                options.ResponseTypes.Add(ResponseTypes.IdToken);
+                options.ResponseTypes.Add(ResponseTypes.IdToken + ' ' + ResponseTypes.Token);
+                options.ResponseTypes.Add(ResponseTypes.Token);
+            });
+
+        /// <summary>
+        /// Enables none flow support. For more information about this specific OAuth 2.0 flow,
+        /// visit https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html#none.
+        /// </summary>
+        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
+        public OpenIddictServerBuilder AllowNoneFlow()
+            => Configure(options => options.ResponseTypes.Add(ResponseTypes.None));
 
         /// <summary>
         /// Enables password flow support. For more information about this specific
@@ -1074,7 +1119,12 @@ namespace Microsoft.Extensions.DependencyInjection
         /// </summary>
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder AllowRefreshTokenFlow()
-            => Configure(options => options.GrantTypes.Add(GrantTypes.RefreshToken));
+            => Configure(options =>
+            {
+                options.GrantTypes.Add(GrantTypes.RefreshToken);
+
+                options.Scopes.Add(Scopes.OfflineAccess);
+            });
 
         /// <summary>
         /// Sets the relative or absolute URLs associated to the authorization endpoint.
@@ -1576,6 +1626,16 @@ namespace Microsoft.Extensions.DependencyInjection
             => Configure(options => options.DisableAuthorizationStorage = true);
 
         /// <summary>
+        /// Configures OpenIddict to disable rolling refresh tokens so
+        /// that refresh tokens used in a token request are not marked
+        /// as redeemed and can still be used until they expire. Disabling
+        /// rolling refresh tokens is NOT recommended, for security reasons.
+        /// </summary>
+        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
+        public OpenIddictServerBuilder DisableRollingRefreshTokens()
+            => Configure(options => options.DisableRollingRefreshTokens = true);
+
+        /// <summary>
         /// Allows processing authorization and token requests that specify scopes that have not
         /// been registered using <see cref="RegisterScopes(string[])"/> or the scope manager.
         /// </summary>
@@ -1615,24 +1675,28 @@ namespace Microsoft.Extensions.DependencyInjection
             => Configure(options => options.EnableDegradedMode = true);
 
         /// <summary>
-        /// Disables endpoint permissions enforcement. Calling this method is NOT recommended,
-        /// unless all the clients are first-party applications you own, control and fully trust.
+        /// Disables endpoint permissions enforcement. Calling this method is NOT recommended.
         /// </summary>
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder IgnoreEndpointPermissions()
             => Configure(options => options.IgnoreEndpointPermissions = true);
 
         /// <summary>
-        /// Disables grant type permissions enforcement. Calling this method is NOT recommended,
-        /// unless all the clients are first-party applications you own, control and fully trust.
+        /// Disables grant type permissions enforcement. Calling this method is NOT recommended.
         /// </summary>
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder IgnoreGrantTypePermissions()
             => Configure(options => options.IgnoreGrantTypePermissions = true);
 
         /// <summary>
-        /// Disables scope permissions enforcement. Calling this method is NOT recommended,
-        /// unless all the clients are first-party applications you own, control and fully trust.
+        /// Disables response type permissions enforcement. Calling this method is NOT recommended.
+        /// </summary>
+        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
+        public OpenIddictServerBuilder IgnoreResponseTypePermissions()
+            => Configure(options => options.IgnoreResponseTypePermissions = true);
+
+        /// <summary>
+        /// Disables scope permissions enforcement. Calling this method is NOT recommended.
         /// </summary>
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder IgnoreScopePermissions()
@@ -1679,6 +1743,15 @@ namespace Microsoft.Extensions.DependencyInjection
 
             return Configure(options => options.Scopes.UnionWith(scopes));
         }
+
+        /// <summary>
+        /// Configures OpenIddict to force client applications to use Proof Key for Code Exchange
+        /// (PKCE) when requesting an authorization code (e.g when using the code or hybrid flows).
+        /// When enforced, authorization requests that lack the code_challenge will be rejected.
+        /// </summary>
+        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
+        public OpenIddictServerBuilder RequireProofKeyForCodeExchange()
+            => Configure(options => options.RequireProofKeyForCodeExchange = true);
 
         /// <summary>
         /// Sets the access token lifetime, after which client applications must retrieve
@@ -1737,6 +1810,15 @@ namespace Microsoft.Extensions.DependencyInjection
             => Configure(options => options.RefreshTokenLifetime = lifetime);
 
         /// <summary>
+        /// Sets the refresh token reuse leeway, during which rolling refresh tokens marked
+        /// as redeemed can still be used to make concurrent refresh token requests.
+        /// </summary>
+        /// <param name="leeway">The refresh token reuse interval.</param>
+        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
+        public OpenIddictServerBuilder SetRefreshTokenReuseLeeway(TimeSpan? leeway)
+            => Configure(options => options.RefreshTokenReuseLeeway = leeway);
+
+        /// <summary>
         /// Sets the user code lifetime, after which they'll no longer be considered valid.
         /// Using short-lived device codes is strongly recommended.
         /// While discouraged, <c>null</c> can be specified to issue codes that never expire.
@@ -1783,15 +1865,6 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
         public OpenIddictServerBuilder UseReferenceRefreshTokens()
             => Configure(options => options.UseReferenceRefreshTokens = true);
-
-        /// <summary>
-        /// Configures OpenIddict to use rolling refresh tokens. When this option is enabled,
-        /// a new refresh token is always issued for each refresh token request (and the previous
-        /// one is automatically revoked unless token storage was explicitly disabled).
-        /// </summary>
-        /// <returns>The <see cref="OpenIddictServerBuilder"/>.</returns>
-        public OpenIddictServerBuilder UseRollingRefreshTokens()
-            => Configure(options => options.UseRollingRefreshTokens = true);
 
         /// <inheritdoc/>
         [EditorBrowsable(EditorBrowsableState.Never)]

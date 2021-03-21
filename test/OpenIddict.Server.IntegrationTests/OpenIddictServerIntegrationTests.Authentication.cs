@@ -41,6 +41,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2084), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2084), response.ErrorUri);
         }
 
         [Fact]
@@ -65,6 +66,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.RequestNotSupported, response.Error);
             Assert.Equal(SR.FormatID2028(Parameters.Request), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2028), response.ErrorUri);
         }
 
         [Fact]
@@ -87,6 +89,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.RequestUriNotSupported, response.Error);
             Assert.Equal(SR.FormatID2028(Parameters.RequestUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2028), response.ErrorUri);
         }
 
         [Theory]
@@ -152,7 +155,7 @@ namespace OpenIddict.Server.IntegrationTests
             var response = await client.GetAsync("/connect/authorize");
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -178,7 +181,7 @@ namespace OpenIddict.Server.IntegrationTests
             var response = await client.GetAsync("/connect/authorize");
 
             // Assert
-            Assert.Equal("Bob le Magnifique", (string) response["name"]);
+            Assert.Equal("Bob le Magnifique", (string?) response["name"]);
         }
 
         [Fact]
@@ -197,6 +200,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.ClientId), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -217,6 +221,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.RedirectUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Theory]
@@ -241,6 +246,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(string.Format(SR.GetResourceString(message), Parameters.RedirectUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(message), response.ErrorUri);
         }
 
         [Fact]
@@ -262,6 +268,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Theory]
@@ -290,6 +297,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2033(Parameters.ResponseType, Parameters.ResponseMode), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2033), response.ErrorUri);
         }
 
         [Theory]
@@ -317,6 +325,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.Nonce), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Theory]
@@ -341,6 +350,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2034(Scopes.OpenId), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2034), response.ErrorUri);
         }
 
         [Theory]
@@ -367,6 +377,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.Prompt), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
         }
 
         [Theory]
@@ -411,9 +422,73 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Null(response.Error);
             Assert.Null(response.ErrorDescription);
+            Assert.Null(response.ErrorUri);
             Assert.NotNull(response.AccessToken);
             Assert.NotNull(response.Code);
             Assert.NotNull(response.IdToken);
+        }
+
+        [Fact]
+        public async Task ValidateAuthorizationRequest_RequestIsRejectedWhenPkceIsRequiredAndCodeChallengeIsMissing()
+        {
+            // Arrange
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.EnableDegradedMode();
+                options.RequireProofKeyForCodeExchange();
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                CodeChallenge = null,
+                RedirectUri = "http://www.fabrikam.com/path",
+                ResponseType = ResponseTypes.Code
+            });
+
+            // Assert
+            Assert.Equal(Errors.InvalidRequest, response.Error);
+            Assert.Equal(SR.FormatID2029(Parameters.CodeChallenge), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
+        }
+
+        [Fact]
+        public async Task ValidateAuthorizationRequest_RequestIsValidateWhenPkceIsNotRequiredAndCodeChallengeIsMissing()
+        {
+            // Arrange
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.EnableDegradedMode();
+
+                options.AddEventHandler<HandleAuthorizationRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                CodeChallenge = null,
+                RedirectUri = "http://www.fabrikam.com/path",
+                ResponseType = ResponseTypes.Code
+            });
+
+            // Assert
+            Assert.Null(response.Error);
+            Assert.Null(response.ErrorDescription);
+            Assert.Null(response.ErrorUri);
+            Assert.NotNull(response.Code);
         }
 
         [Theory]
@@ -441,6 +516,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2040(Parameters.CodeChallenge, Parameters.CodeChallengeMethod, ResponseTypes.Code), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2040), response.ErrorUri);
         }
 
         [Fact]
@@ -463,6 +539,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2037(Parameters.CodeChallengeMethod, Parameters.CodeChallenge), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2037), response.ErrorUri);
         }
 
         [Fact]
@@ -486,26 +563,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.CodeChallengeMethod), response.ErrorDescription);
-        }
-
-        [Fact]
-        public async Task ValidateAuthorizationRequest_NoneFlowIsRejected()
-        {
-            // Arrange
-            await using var server = await CreateServerAsync(options => options.EnableDegradedMode());
-            await using var client = await server.CreateClientAsync();
-
-            // Act
-            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
-            {
-                ClientId = "Fabrikam",
-                RedirectUri = "http://www.fabrikam.com/path",
-                ResponseType = ResponseTypes.None
-            });
-
-            // Assert
-            Assert.Equal(Errors.UnsupportedResponseType, response.Error);
-            Assert.Equal(SR.FormatID2032(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Fact]
@@ -526,6 +584,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnsupportedResponseType, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Theory]
@@ -539,12 +598,13 @@ namespace OpenIddict.Server.IntegrationTests
         [InlineData(GrantTypes.Implicit, "id_token")]
         [InlineData(GrantTypes.Implicit, "id_token token")]
         [InlineData(GrantTypes.Implicit, "token")]
-        public async Task ValidateAuthorizationRequest_RequestIsRejectedWhenCorrespondingFlowIsDisabled(string flow, string type)
+        public async Task ValidateAuthorizationRequest_RequestIsRejectedWhenGrantTypeIsDisabled(string flow, string type)
         {
             // Arrange
             await using var server = await CreateServerAsync(options =>
             {
                 options.Configure(options => options.GrantTypes.Remove(flow));
+                options.Configure(options => options.ResponseTypes.Clear());
             });
 
             await using var client = await server.CreateClientAsync();
@@ -562,6 +622,65 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnsupportedResponseType, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
+        }
+
+        [Theory]
+        [InlineData("code")]
+        [InlineData("code id_token")]
+        [InlineData("code id_token token")]
+        [InlineData("code token")]
+        [InlineData("id_token")]
+        [InlineData("id_token token")]
+        [InlineData("none")]
+        [InlineData("token")]
+        public async Task ValidateAuthorizationRequest_RequestIsRejectedWhenResponseTypeIsDisabled(string type)
+        {
+            // Arrange
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.Configure(options => options.ResponseTypes.Remove(type));
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                Nonce = "n-0S6_WzA2Mj",
+                RedirectUri = "http://www.fabrikam.com/path",
+                ResponseType = type,
+                Scope = Scopes.OpenId
+            });
+
+            // Assert
+            Assert.Equal(Errors.UnsupportedResponseType, response.Error);
+            Assert.Equal(SR.FormatID2032(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
+        }
+
+        [Fact]
+        public async Task ValidateAuthorizationRequest_UnsupportedResponseModeCausesAnError()
+        {
+            // Arrange
+            await using var server = await CreateServerAsync(options => options.EnableDegradedMode());
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                RedirectUri = "http://www.fabrikam.com/path",
+                ResponseMode = "unsupported_response_mode",
+                ResponseType = ResponseTypes.Code,
+                Scope = Scopes.OpenId
+            });
+
+            // Assert
+            Assert.Equal(Errors.InvalidRequest, response.Error);
+            Assert.Equal(SR.FormatID2032(Parameters.ResponseMode), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Fact]
@@ -607,6 +726,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidScope, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.Scope), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
         }
 
         [Fact]
@@ -737,6 +857,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2035(Scopes.OfflineAccess), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2035), response.ErrorUri);
         }
 
         [Fact]
@@ -758,6 +879,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.ResponseMode), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Fact]
@@ -780,6 +902,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.CodeChallengeMethod), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -808,6 +931,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.CodeChallengeMethod), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Fact]
@@ -830,6 +954,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.CodeChallengeMethod), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Theory]
@@ -898,6 +1023,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2041(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2041), response.ErrorUri);
         }
 
         [Fact]
@@ -919,6 +1045,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.RedirectUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -1005,6 +1132,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.ClientId), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
         }
@@ -1014,7 +1142,7 @@ namespace OpenIddict.Server.IntegrationTests
         [InlineData("code token")]
         [InlineData("id_token token")]
         [InlineData("token")]
-        public async Task ValidateAuthorizationRequest_AnAccessTokenCannotBeReturnedWhenClientIsConfidential(string type)
+        public async Task ValidateAuthorizationRequest_AnAccessTokenIsNotReturnedWhenClientIsConfidential(string type)
         {
             // Arrange
             var application = new OpenIddictApplication();
@@ -1026,6 +1154,9 @@ namespace OpenIddict.Server.IntegrationTests
 
                 mock.Setup(manager => manager.HasClientTypeAsync(application, ClientTypes.Confidential, It.IsAny<CancellationToken>()))
                     .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetPermissionsAsync(application, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(ImmutableArray.Create<string>());
             });
 
             await using var server = await CreateServerAsync(options =>
@@ -1048,6 +1179,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnauthorizedClient, response.Error);
             Assert.Equal(SR.FormatID2043(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2043), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasClientTypeAsync(application, ClientTypes.Confidential, It.IsAny<CancellationToken>()), Times.Once());
@@ -1092,6 +1224,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnauthorizedClient, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2046), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2046), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
@@ -1170,9 +1303,128 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnauthorizedClient, response.Error);
             Assert.Equal(SR.GetResourceString(description), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(description), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application, permissions[0], It.IsAny<CancellationToken>()), Times.Once());
+        }
+
+        [Theory]
+        [InlineData("code")]
+        [InlineData("code id_token")]
+        [InlineData("code id_token token")]
+        [InlineData("code token")]
+        [InlineData("id_token")]
+        [InlineData("id_token token")]
+        [InlineData("none")]
+        [InlineData("token")]
+        public async Task ValidateAuthorizationRequest_RequestIsRejectedWhenResponseTypePermissionIsNotGranted(string type)
+        {
+            // Arrange
+            var application = new OpenIddictApplication();
+
+            var manager = CreateApplicationManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(application);
+
+                mock.Setup(manager => manager.ValidateRedirectUriAsync(application, "http://www.fabrikam.com/path", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetPermissionsAsync(application, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(ImmutableArray.Create<string>());
+            });
+
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.Services.AddSingleton(manager);
+
+                options.Configure(options => options.IgnoreResponseTypePermissions = false);
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                Nonce = "n-0S6_WzA2Mj",
+                RedirectUri = "http://www.fabrikam.com/path",
+                ResponseType = type,
+                Scope = Scopes.OpenId
+            });
+
+            // Assert
+            Assert.Equal(Errors.UnauthorizedClient, response.Error);
+            Assert.Equal(SR.FormatID2043(Parameters.ResponseType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2043), response.ErrorUri);
+
+            Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
+            Mock.Get(manager).Verify(manager => manager.GetPermissionsAsync(application, It.IsAny<CancellationToken>()), Times.Once());
+        }
+
+        [Theory]
+        [InlineData("code id_token token")]
+        [InlineData("code token")]
+        [InlineData("id_token token")]
+        [InlineData("token")]
+        public async Task ValidateAuthorizationRequest_RequestIsValidatedWhenExplicitPermissionIsGranted(string type)
+        {
+            // Arrange
+            var application = new OpenIddictApplication();
+
+            var manager = CreateApplicationManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(application);
+
+                mock.Setup(manager => manager.GetPermissionsAsync(application, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(ImmutableArray.Create("rst:" + type));
+
+                mock.Setup(manager => manager.ValidateRedirectUriAsync(application, "http://www.fabrikam.com/path", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(true);
+            });
+
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.Services.AddSingleton(manager);
+
+                options.DisableAuthorizationStorage();
+                options.DisableTokenStorage();
+                options.DisableSlidingRefreshTokenExpiration();
+
+                options.Configure(options => options.IgnoreResponseTypePermissions = false);
+
+                options.AddEventHandler<HandleAuthorizationRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                Nonce = "n-0S6_WzA2Mj",
+                RedirectUri = "http://www.fabrikam.com/path",
+                ResponseType = type,
+                Scope = Scopes.OpenId
+            });
+
+            // Assert
+            Assert.Null(response.Error);
+            Assert.Null(response.ErrorDescription);
+            Assert.Null(response.ErrorUri);
+            Assert.NotNull(response.AccessToken);
+
+            Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
+            Mock.Get(manager).Verify(manager => manager.GetPermissionsAsync(application, It.IsAny<CancellationToken>()), Times.Once());
         }
 
         [Fact]
@@ -1219,6 +1471,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2065(Scopes.OfflineAccess), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2065), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
                 Permissions.GrantTypes.RefreshToken, It.IsAny<CancellationToken>()), Times.Once());
@@ -1257,6 +1510,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2043(Parameters.RedirectUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2043), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.ValidateRedirectUriAsync(application, "http://www.fabrikam.com/path", It.IsAny<CancellationToken>()), Times.Once());
@@ -1306,6 +1560,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2051), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2051), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
                 Permissions.Prefixes.Scope + Scopes.OpenId, It.IsAny<CancellationToken>()), Times.Never());
@@ -1356,6 +1611,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2054(Parameters.CodeChallenge), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2054), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasRequirementAsync(application,
@@ -1553,7 +1809,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -1585,7 +1841,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Magnifique", (string) response["name"]);
+            Assert.Equal("Bob le Magnifique", (string?) response["name"]);
         }
 
         [Theory]
@@ -1663,7 +1919,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -1695,7 +1951,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Magnifique", (string) response["name"]);
+            Assert.Equal("Bob le Magnifique", (string?) response["name"]);
         }
 
         [Theory]
@@ -1744,7 +2000,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal(mode, (string) response["inferred_response_mode"]);
+            Assert.Equal(mode, (string?) response["inferred_response_mode"]);
         }
 
         [Fact]
@@ -1790,7 +2046,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -1836,8 +2092,8 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("custom_value", (string) response["custom_parameter"]);
-            Assert.Equal(new[] { "custom_value_1", "custom_value_2" }, (string[]) response["parameter_with_multiple_values"]);
+            Assert.Equal("custom_value", (string?) response["custom_parameter"]);
+            Assert.Equal(new[] { "custom_value_1", "custom_value_2" }, (string[]?) response["parameter_with_multiple_values"]);
         }
 
         [Fact]
@@ -1984,46 +2240,6 @@ namespace OpenIddict.Server.IntegrationTests
 
             // Assert
             Assert.Equal("custom_state", response.State);
-        }
-
-        [Fact]
-        public async Task ApplyAuthorizationResponse_UnsupportedResponseModeCausesAnError()
-        {
-            // Note: response_mode validation is deliberately delayed until an authorization response
-            // is returned to allow implementers to override the ApplyAuthorizationResponse event
-            // to support custom response modes. To test this scenario, the request is marked
-            // as validated and a signin grant is applied to return an authorization response.
-
-            // Arrange
-            await using var server = await CreateServerAsync(options =>
-            {
-                options.EnableDegradedMode();
-
-                options.AddEventHandler<HandleAuthorizationRequestContext>(builder =>
-                    builder.UseInlineHandler(context =>
-                    {
-                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
-                            .SetClaim(Claims.Subject, "Bob le Magnifique");
-
-                        return default;
-                    }));
-            });
-
-            await using var client = await server.CreateClientAsync();
-
-            // Act
-            var response = await client.PostAsync("/connect/authorize", new OpenIddictRequest
-            {
-                ClientId = "Fabrikam",
-                RedirectUri = "http://www.fabrikam.com/path",
-                ResponseMode = "unsupported_response_mode",
-                ResponseType = ResponseTypes.Code,
-                Scope = Scopes.OpenId
-            });
-
-            // Assert
-            Assert.Equal(Errors.InvalidRequest, response.Error);
-            Assert.Equal(SR.FormatID2032(Parameters.ResponseMode), response.ErrorDescription);
         }
     }
 }

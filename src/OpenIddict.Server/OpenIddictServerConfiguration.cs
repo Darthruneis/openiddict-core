@@ -5,6 +5,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Microsoft.Extensions.Options;
@@ -34,18 +35,19 @@ namespace OpenIddict.Server
                 throw new ArgumentNullException(nameof(options));
             }
 
+            // Explicitly disable all the features that are implicitly excluded when the degraded mode is active.
             if (options.EnableDegradedMode)
             {
-                // Explicitly disable all the features that are implicitly excluded when the degraded mode is active.
-                options.DisableAuthorizationStorage = options.DisableTokenStorage = true;
-                options.IgnoreEndpointPermissions = options.IgnoreGrantTypePermissions = options.IgnoreScopePermissions = true;
+                options.DisableAuthorizationStorage = options.DisableTokenStorage = options.DisableRollingRefreshTokens = true;
+                options.IgnoreEndpointPermissions = options.IgnoreGrantTypePermissions = true;
+                options.IgnoreResponseTypePermissions = options.IgnoreScopePermissions = true;
                 options.UseReferenceAccessTokens = options.UseReferenceRefreshTokens = false;
+            }
 
-                // When the degraded mode is enabled (and the token storage disabled), OpenIddict is not able to dynamically
-                // update the expiration date of a token. As such, either rolling tokens MUST be enabled or sliding token
-                // expiration MUST be disabled to always issue new refresh tokens with the same fixed expiration date.
-                // By default, OpenIddict will automatically force the rolling tokens option when using the degraded mode.
-                options.UseRollingRefreshTokens |= !options.UseRollingRefreshTokens && !options.DisableSlidingRefreshTokenExpiration;
+            // Explicitly disable rolling refresh tokens when token storage is disabled.
+            if (options.DisableTokenStorage)
+            {
+                options.DisableRollingRefreshTokens = true;
             }
 
             if (options.JsonWebTokenHandler is null)
@@ -57,6 +59,24 @@ namespace OpenIddict.Server
             if (options.GrantTypes.Count == 0)
             {
                 throw new InvalidOperationException(SR.GetResourceString(SR.ID0076));
+            }
+
+            var addresses = options.AuthorizationEndpointUris.Distinct()
+                .Concat(options.ConfigurationEndpointUris.Distinct())
+                .Concat(options.CryptographyEndpointUris.Distinct())
+                .Concat(options.DeviceEndpointUris.Distinct())
+                .Concat(options.IntrospectionEndpointUris.Distinct())
+                .Concat(options.LogoutEndpointUris.Distinct())
+                .Concat(options.RevocationEndpointUris.Distinct())
+                .Concat(options.TokenEndpointUris.Distinct())
+                .Concat(options.UserinfoEndpointUris.Distinct())
+                .Concat(options.VerificationEndpointUris.Distinct())
+                .ToList();
+
+            // Ensure endpoint addresses are unique across endpoints.
+            if (addresses.Count != addresses.Distinct().Count())
+            {
+                throw new InvalidOperationException(SR.GetResourceString(SR.ID0285));
             }
 
             // Ensure the authorization endpoint has been enabled when
@@ -90,17 +110,36 @@ namespace OpenIddict.Server
                 throw new InvalidOperationException(SR.GetResourceString(SR.ID0080));
             }
 
-            if (options.DisableTokenStorage)
+            // Ensure the device grant is allowed when the device endpoint is enabled.
+            if (options.DeviceEndpointUris.Count > 0 && !options.GrantTypes.Contains(GrantTypes.DeviceCode))
             {
-                if (options.UseReferenceAccessTokens || options.UseReferenceRefreshTokens)
+                throw new InvalidOperationException(SR.GetResourceString(SR.ID0084));
+            }
+
+            // Ensure the grant types/response types configuration is consistent.
+            foreach (var type in options.ResponseTypes)
+            {
+                var types = new HashSet<string>(type.Split(Separators.Space, StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+                if (types.Contains(ResponseTypes.Code) && !options.GrantTypes.Contains(GrantTypes.AuthorizationCode))
                 {
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0083));
+                    throw new InvalidOperationException(SR.FormatID0281(ResponseTypes.Code));
                 }
 
-                if (!options.DisableSlidingRefreshTokenExpiration && !options.UseRollingRefreshTokens)
+                if (types.Contains(ResponseTypes.IdToken) && !options.GrantTypes.Contains(GrantTypes.Implicit))
                 {
-                    throw new InvalidOperationException(SR.GetResourceString(SR.ID0084));
+                    throw new InvalidOperationException(SR.FormatID0282(ResponseTypes.IdToken));
                 }
+
+                if (types.Contains(ResponseTypes.Token) && !options.GrantTypes.Contains(GrantTypes.Implicit))
+                {
+                    throw new InvalidOperationException(SR.FormatID0282(ResponseTypes.Token));
+                }
+            }
+
+            // Ensure reference tokens support was not enabled when token storage is disabled.
+            if (options.DisableTokenStorage && (options.UseReferenceAccessTokens || options.UseReferenceRefreshTokens))
+            {
+                throw new InvalidOperationException(SR.GetResourceString(SR.ID0083));
             }
 
             if (options.EncryptionCredentials.Count == 0)
@@ -218,53 +257,12 @@ namespace OpenIddict.Server
             options.EncryptionCredentials.Sort((left, right) => Compare(left.Key, right.Key));
             options.SigningCredentials.Sort((left, right) => Compare(left.Key, right.Key));
 
-            // Automatically add the offline_access scope if the refresh token grant has been enabled.
-            if (options.GrantTypes.Contains(GrantTypes.RefreshToken))
-            {
-                options.Scopes.Add(Scopes.OfflineAccess);
-            }
-
-            if (options.GrantTypes.Contains(GrantTypes.AuthorizationCode))
-            {
-                options.CodeChallengeMethods.Add(CodeChallengeMethods.Sha256);
-
-                options.ResponseTypes.Add(ResponseTypes.Code);
-            }
-
-            if (options.GrantTypes.Contains(GrantTypes.Implicit))
-            {
-                options.ResponseTypes.Add(ResponseTypes.IdToken);
-                options.ResponseTypes.Add(ResponseTypes.IdToken + ' ' + ResponseTypes.Token);
-                options.ResponseTypes.Add(ResponseTypes.Token);
-            }
-
-            if (options.GrantTypes.Contains(GrantTypes.AuthorizationCode) && options.GrantTypes.Contains(GrantTypes.Implicit))
-            {
-                options.ResponseTypes.Add(ResponseTypes.Code + ' ' + ResponseTypes.IdToken);
-                options.ResponseTypes.Add(ResponseTypes.Code + ' ' + ResponseTypes.IdToken + ' ' + ResponseTypes.Token);
-                options.ResponseTypes.Add(ResponseTypes.Code + ' ' + ResponseTypes.Token);
-            }
-
-            if (options.ResponseTypes.Count != 0)
-            {
-                options.ResponseModes.Add(ResponseModes.FormPost);
-                options.ResponseModes.Add(ResponseModes.Fragment);
-
-                if (options.ResponseTypes.Contains(ResponseTypes.Code))
-                {
-                    options.ResponseModes.Add(ResponseModes.Query);
-                }
-            }
-
+            // Generate a key identifier for the encryption/signing keys that don't already have one.
             foreach (var key in options.EncryptionCredentials
                 .Select(credentials => credentials.Key)
-                .Concat(options.SigningCredentials.Select(credentials => credentials.Key)))
+                .Concat(options.SigningCredentials.Select(credentials => credentials.Key))
+                .Where(key => string.IsNullOrEmpty(key.KeyId)))
             {
-                if (!string.IsNullOrEmpty(key.KeyId))
-                {
-                    continue;
-                }
-
                 key.KeyId = GetKeyIdentifier(key);
             }
 

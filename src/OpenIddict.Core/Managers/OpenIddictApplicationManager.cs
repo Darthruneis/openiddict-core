@@ -15,9 +15,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -50,13 +50,11 @@ namespace OpenIddict.Core
     {
         public OpenIddictApplicationManager(
             IOpenIddictApplicationCache<TApplication> cache,
-            IStringLocalizer<OpenIddictResources> localizer,
             ILogger<OpenIddictApplicationManager<TApplication>> logger,
             IOptionsMonitor<OpenIddictCoreOptions> options,
             IOpenIddictApplicationStoreResolver resolver)
         {
             Cache = cache;
-            Localizer = localizer;
             Logger = logger;
             Options = options;
             Store = resolver.Get<TApplication>();
@@ -66,11 +64,6 @@ namespace OpenIddict.Core
         /// Gets the cache associated with the current manager.
         /// </summary>
         protected IOpenIddictApplicationCache<TApplication> Cache { get; }
-
-        /// <summary>
-        /// Gets the string localizer associated with the current manager.
-        /// </summary>
-        protected IStringLocalizer Localizer { get; }
 
         /// <summary>
         /// Gets the logger associated with the current manager.
@@ -705,6 +698,26 @@ namespace OpenIddict.Core
         }
 
         /// <summary>
+        /// Retrieves the additional properties associated with an application.
+        /// </summary>
+        /// <param name="application">The application.</param>
+        /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
+        /// <returns>
+        /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
+        /// whose result returns all the additional properties associated with the application.
+        /// </returns>
+        public virtual ValueTask<ImmutableDictionary<string, JsonElement>> GetPropertiesAsync(
+            TApplication application, CancellationToken cancellationToken = default)
+        {
+            if (application is null)
+            {
+                throw new ArgumentNullException(nameof(application));
+            }
+
+            return Store.GetPropertiesAsync(application, cancellationToken);
+        }
+
+        /// <summary>
         /// Retrieves the callback addresses associated with an application.
         /// </summary>
         /// <param name="application">The application.</param>
@@ -917,6 +930,7 @@ namespace OpenIddict.Core
             await Store.SetPermissionsAsync(application, descriptor.Permissions.ToImmutableArray(), cancellationToken);
             await Store.SetPostLogoutRedirectUrisAsync(application, ImmutableArray.CreateRange(
                 descriptor.PostLogoutRedirectUris.Select(address => address.OriginalString)), cancellationToken);
+            await Store.SetPropertiesAsync(application, descriptor.Properties.ToImmutableDictionary(), cancellationToken);
             await Store.SetRedirectUrisAsync(application, ImmutableArray.CreateRange(
                 descriptor.RedirectUris.Select(address => address.OriginalString)), cancellationToken);
             await Store.SetRequirementsAsync(application, descriptor.Requirements.ToImmutableArray(), cancellationToken);
@@ -977,6 +991,12 @@ namespace OpenIddict.Core
                 }
 
                 descriptor.PostLogoutRedirectUris.Add(uri);
+            }
+
+            descriptor.Properties.Clear();
+            foreach (var pair in await Store.GetPropertiesAsync(application, cancellationToken))
+            {
+                descriptor.Properties.Add(pair.Key, pair.Value);
             }
 
             descriptor.RedirectUris.Clear();
@@ -1138,7 +1158,7 @@ namespace OpenIddict.Core
             var identifier = await Store.GetClientIdAsync(application, cancellationToken);
             if (string.IsNullOrEmpty(identifier))
             {
-                yield return new ValidationResult(Localizer[SR.ID2036]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2036));
             }
 
             else
@@ -1152,37 +1172,36 @@ namespace OpenIddict.Core
                     await Store.GetIdAsync(other, cancellationToken),
                     await Store.GetIdAsync(application, cancellationToken), StringComparison.Ordinal))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2111]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2111));
                 }
             }
 
             var type = await Store.GetClientTypeAsync(application, cancellationToken);
             if (string.IsNullOrEmpty(type))
             {
-                yield return new ValidationResult(Localizer[SR.ID2118]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2050));
             }
 
             else
             {
                 // Ensure the application type is supported by the manager.
                 if (!string.Equals(type, ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(type, ClientTypes.Hybrid, StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(type, ClientTypes.Public, StringComparison.OrdinalIgnoreCase))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2112]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2112));
                 }
 
                 // Ensure a client secret was specified if the client is a confidential application.
                 var secret = await Store.GetClientSecretAsync(application, cancellationToken);
                 if (string.IsNullOrEmpty(secret) && string.Equals(type, ClientTypes.Confidential, StringComparison.OrdinalIgnoreCase))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2113]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2113));
                 }
 
                 // Ensure no client secret was specified if the client is a public application.
                 else if (!string.IsNullOrEmpty(secret) && string.Equals(type, ClientTypes.Public, StringComparison.OrdinalIgnoreCase))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2114]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2114));
                 }
             }
 
@@ -1195,7 +1214,7 @@ namespace OpenIddict.Core
                 // Ensure the address is not null or empty.
                 if (string.IsNullOrEmpty(address))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2119]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2061));
 
                     break;
                 }
@@ -1203,7 +1222,7 @@ namespace OpenIddict.Core
                 // Ensure the address is a valid absolute URL.
                 if (!Uri.TryCreate(address, UriKind.Absolute, out Uri? uri) || !uri.IsWellFormedOriginalString())
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2120]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2062));
 
                     break;
                 }
@@ -1211,7 +1230,7 @@ namespace OpenIddict.Core
                 // Ensure the address doesn't contain a fragment.
                 if (!string.IsNullOrEmpty(uri.Fragment))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2115]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2115));
 
                     break;
                 }
@@ -1589,6 +1608,10 @@ namespace OpenIddict.Core
         /// <inheritdoc/>
         ValueTask<ImmutableArray<string>> IOpenIddictApplicationManager.GetPostLogoutRedirectUrisAsync(object application, CancellationToken cancellationToken)
             => GetPostLogoutRedirectUrisAsync((TApplication) application, cancellationToken);
+
+        /// <inheritdoc/>
+        ValueTask<ImmutableDictionary<string, JsonElement>> IOpenIddictApplicationManager.GetPropertiesAsync(object application, CancellationToken cancellationToken)
+            => GetPropertiesAsync((TApplication) application, cancellationToken);
 
         /// <inheritdoc/>
         ValueTask<ImmutableArray<string>> IOpenIddictApplicationManager.GetRedirectUrisAsync(object application, CancellationToken cancellationToken)

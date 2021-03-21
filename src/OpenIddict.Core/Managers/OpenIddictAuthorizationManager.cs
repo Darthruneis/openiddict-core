@@ -12,9 +12,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -37,13 +37,11 @@ namespace OpenIddict.Core
     {
         public OpenIddictAuthorizationManager(
             IOpenIddictAuthorizationCache<TAuthorization> cache,
-            IStringLocalizer<OpenIddictResources> localizer,
             ILogger<OpenIddictAuthorizationManager<TAuthorization>> logger,
             IOptionsMonitor<OpenIddictCoreOptions> options,
             IOpenIddictAuthorizationStoreResolver resolver)
         {
             Cache = cache;
-            Localizer = localizer;
             Logger = logger;
             Options = options;
             Store = resolver.Get<TAuthorization>();
@@ -53,11 +51,6 @@ namespace OpenIddict.Core
         /// Gets the cache associated with the current manager.
         /// </summary>
         protected IOpenIddictAuthorizationCache<TAuthorization> Cache { get; }
-
-        /// <summary>
-        /// Gets the string localizer associated with the current manager.
-        /// </summary>
-        protected IStringLocalizer Localizer { get; }
 
         /// <summary>
         /// Gets the logger associated with the current manager.
@@ -723,6 +716,26 @@ namespace OpenIddict.Core
         }
 
         /// <summary>
+        /// Retrieves the additional properties associated with an authorization.
+        /// </summary>
+        /// <param name="authorization">The authorization.</param>
+        /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
+        /// <returns>
+        /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
+        /// whose result returns all the additional properties associated with the authorization.
+        /// </returns>
+        public virtual ValueTask<ImmutableDictionary<string, JsonElement>> GetPropertiesAsync(
+            TAuthorization authorization, CancellationToken cancellationToken = default)
+        {
+            if (authorization is null)
+            {
+                throw new ArgumentNullException(nameof(authorization));
+            }
+
+            return Store.GetPropertiesAsync(authorization, cancellationToken);
+        }
+
+        /// <summary>
         /// Retrieves the scopes associated with an authorization.
         /// </summary>
         /// <param name="authorization">The authorization.</param>
@@ -941,6 +954,7 @@ namespace OpenIddict.Core
 
             await Store.SetApplicationIdAsync(authorization, descriptor.ApplicationId, cancellationToken);
             await Store.SetCreationDateAsync(authorization, descriptor.CreationDate, cancellationToken);
+            await Store.SetPropertiesAsync(authorization, descriptor.Properties.ToImmutableDictionary(), cancellationToken);
             await Store.SetScopesAsync(authorization, descriptor.Scopes.ToImmutableArray(), cancellationToken);
             await Store.SetStatusAsync(authorization, descriptor.Status, cancellationToken);
             await Store.SetSubjectAsync(authorization, descriptor.Subject, cancellationToken);
@@ -977,6 +991,12 @@ namespace OpenIddict.Core
             descriptor.Status = await Store.GetStatusAsync(authorization, cancellationToken);
             descriptor.Subject = await Store.GetSubjectAsync(authorization, cancellationToken);
             descriptor.Type = await Store.GetTypeAsync(authorization, cancellationToken);
+
+            descriptor.Properties.Clear();
+            foreach (var pair in await Store.GetPropertiesAsync(authorization, cancellationToken))
+            {
+                descriptor.Properties.Add(pair.Key, pair.Value);
+            }
         }
 
         /// <summary>
@@ -994,27 +1014,6 @@ namespace OpenIddict.Core
         /// </returns>
         public virtual ValueTask PruneAsync(DateTimeOffset threshold, CancellationToken cancellationToken = default)
             => Store.PruneAsync(threshold, cancellationToken);
-
-        /// <summary>
-        /// Sets the application identifier associated with an authorization.
-        /// </summary>
-        /// <param name="authorization">The authorization.</param>
-        /// <param name="identifier">The unique identifier associated with the client application.</param>
-        /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
-        /// <returns>
-        /// A <see cref="ValueTask"/> that can be used to monitor the asynchronous operation.
-        /// </returns>
-        public virtual async ValueTask SetApplicationIdAsync(
-            TAuthorization authorization, string? identifier, CancellationToken cancellationToken = default)
-        {
-            if (authorization is null)
-            {
-                throw new ArgumentNullException(nameof(authorization));
-            }
-
-            await Store.SetApplicationIdAsync(authorization, identifier, cancellationToken);
-            await UpdateAsync(authorization, cancellationToken);
-        }
 
         /// <summary>
         /// Tries to revoke an authorization.
@@ -1156,18 +1155,18 @@ namespace OpenIddict.Core
             var type = await Store.GetTypeAsync(authorization, cancellationToken);
             if (string.IsNullOrEmpty(type))
             {
-                yield return new ValidationResult(Localizer[SR.ID2116]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2116));
             }
 
             else if (!string.Equals(type, AuthorizationTypes.AdHoc, StringComparison.OrdinalIgnoreCase) &&
                      !string.Equals(type, AuthorizationTypes.Permanent, StringComparison.OrdinalIgnoreCase))
             {
-                yield return new ValidationResult(Localizer[SR.ID2117]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2117));
             }
 
             if (string.IsNullOrEmpty(await Store.GetStatusAsync(authorization, cancellationToken)))
             {
-                yield return new ValidationResult(Localizer[SR.ID2038]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2038));
             }
 
             // Ensure that the scopes are not null or empty and do not contain spaces.
@@ -1175,14 +1174,14 @@ namespace OpenIddict.Core
             {
                 if (string.IsNullOrEmpty(scope))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2039]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2039));
 
                     break;
                 }
 
                 if (scope.Contains(Separators.Space[0]))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2042]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2042));
 
                     break;
                 }
@@ -1261,6 +1260,10 @@ namespace OpenIddict.Core
             => GetIdAsync((TAuthorization) authorization, cancellationToken);
 
         /// <inheritdoc/>
+        ValueTask<ImmutableDictionary<string, JsonElement>> IOpenIddictAuthorizationManager.GetPropertiesAsync(object authorization, CancellationToken cancellationToken)
+            => GetPropertiesAsync((TAuthorization) authorization, cancellationToken);
+
+        /// <inheritdoc/>
         ValueTask<ImmutableArray<string>> IOpenIddictAuthorizationManager.GetScopesAsync(object authorization, CancellationToken cancellationToken)
             => GetScopesAsync((TAuthorization) authorization, cancellationToken);
 
@@ -1311,10 +1314,6 @@ namespace OpenIddict.Core
         /// <inheritdoc/>
         ValueTask IOpenIddictAuthorizationManager.PruneAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
             => PruneAsync(threshold, cancellationToken);
-
-        /// <inheritdoc/>
-        ValueTask IOpenIddictAuthorizationManager.SetApplicationIdAsync(object authorization, string? identifier, CancellationToken cancellationToken)
-            => SetApplicationIdAsync((TAuthorization) authorization, identifier, cancellationToken);
 
         /// <inheritdoc/>
         ValueTask<bool> IOpenIddictAuthorizationManager.TryRevokeAsync(object authorization, CancellationToken cancellationToken)

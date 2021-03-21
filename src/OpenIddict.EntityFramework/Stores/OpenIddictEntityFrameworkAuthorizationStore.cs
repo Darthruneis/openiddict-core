@@ -420,7 +420,12 @@ namespace OpenIddict.EntityFramework
                 throw new ArgumentNullException(nameof(authorization));
             }
 
-            return new ValueTask<DateTimeOffset?>(authorization.CreationDate);
+            if (authorization.CreationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(authorization.CreationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -495,7 +500,13 @@ namespace OpenIddict.EntityFramework
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    builder.Add(element.GetString());
+                    var value = element.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder.Add(value);
                 }
 
                 return builder.ToImmutable();
@@ -610,7 +621,9 @@ namespace OpenIddict.EntityFramework
                 }
             }
 
-            for (var offset = 0; offset < 100_000; offset += 1_000)
+            // Note: to avoid sending too many queries, the maximum number of elements
+            // that can be removed by a single call to PruneAsync() is deliberately limited.
+            for (var index = 0; index < 1_000; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -622,11 +635,11 @@ namespace OpenIddict.EntityFramework
 
                 var authorizations =
                     await (from authorization in Authorizations.Include(authorization => authorization.Tokens)
-                           where authorization.CreationDate < threshold
+                           where authorization.CreationDate < threshold.UtcDateTime
                            where authorization.Status != Statuses.Valid ||
                                 (authorization.Type == AuthorizationTypes.AdHoc && !authorization.Tokens.Any())
                            orderby authorization.Id
-                           select authorization).Skip(offset).Take(1_000).ToListAsync(cancellationToken);
+                           select authorization).Take(1_000).ToListAsync(cancellationToken);
 
                 if (authorizations.Count == 0)
                 {
@@ -705,7 +718,7 @@ namespace OpenIddict.EntityFramework
                 throw new ArgumentNullException(nameof(authorization));
             }
 
-            authorization.CreationDate = date;
+            authorization.CreationDate = date?.UtcDateTime;
 
             return default;
         }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,13 +39,17 @@ namespace Mvc.Server
                         ClientSecret = "901564A5-E7FE-42CB-B10D-61EF6A8F3654",
                         ConsentType = ConsentTypes.Explicit,
                         DisplayName = "MVC client application",
+                        DisplayNames =
+                        {
+                            [CultureInfo.GetCultureInfo("fr-FR")] = "Application cliente MVC"
+                        },
                         PostLogoutRedirectUris =
                         {
-                            new Uri("http://localhost:53507/signout-callback-oidc")
+                            new Uri("https://localhost:44381/signout-callback-oidc")
                         },
                         RedirectUris =
                         {
-                            new Uri("http://localhost:53507/signin-oidc")
+                            new Uri("https://localhost:44381/signin-oidc")
                         },
                         Permissions =
                         {
@@ -53,6 +58,7 @@ namespace Mvc.Server
                             Permissions.Endpoints.Token,
                             Permissions.GrantTypes.AuthorizationCode,
                             Permissions.GrantTypes.RefreshToken,
+                            Permissions.ResponseTypes.Code,
                             Permissions.Scopes.Email,
                             Permissions.Scopes.Profile,
                             Permissions.Scopes.Roles,
@@ -67,8 +73,8 @@ namespace Mvc.Server
 
                 // To test this sample with Postman, use the following settings:
                 //
-                // * Authorization URL: http://localhost:54540/connect/authorize
-                // * Access token URL: http://localhost:54540/connect/token
+                // * Authorization URL: https://localhost:44395/connect/authorize
+                // * Access token URL: https://localhost:44395/connect/token
                 // * Client ID: postman
                 // * Client secret: [blank] (not used with public clients)
                 // * Scope: openid email profile roles
@@ -94,6 +100,7 @@ namespace Mvc.Server
                             Permissions.GrantTypes.DeviceCode,
                             Permissions.GrantTypes.Password,
                             Permissions.GrantTypes.RefreshToken,
+                            Permissions.ResponseTypes.Code,
                             Permissions.Scopes.Email,
                             Permissions.Scopes.Profile,
                             Permissions.Scopes.Roles
@@ -111,6 +118,10 @@ namespace Mvc.Server
                     await manager.CreateAsync(new OpenIddictScopeDescriptor
                     {
                         DisplayName = "Demo API access",
+                        DisplayNames =
+                        {
+                            [CultureInfo.GetCultureInfo("fr-FR")] = "Accès à l'API de démo"
+                        },
                         Name = "demo_api",
                         Resources =
                         {

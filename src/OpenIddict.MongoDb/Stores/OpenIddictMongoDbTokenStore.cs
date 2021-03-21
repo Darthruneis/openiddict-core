@@ -370,7 +370,12 @@ namespace OpenIddict.MongoDb
                 throw new ArgumentNullException(nameof(token));
             }
 
-            return new ValueTask<DateTimeOffset?>(token.CreationDate);
+            if (token.CreationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.CreationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -381,7 +386,12 @@ namespace OpenIddict.MongoDb
                 throw new ArgumentNullException(nameof(token));
             }
 
-            return new ValueTask<DateTimeOffset?>(token.ExpirationDate);
+            if (token.ExpirationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.ExpirationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -428,6 +438,22 @@ namespace OpenIddict.MongoDb
             }
 
             return new ValueTask<ImmutableDictionary<string, JsonElement>>(builder.ToImmutable());
+        }
+
+        /// <inheritdoc/>
+        public virtual ValueTask<DateTimeOffset?> GetRedemptionDateAsync(TToken token, CancellationToken cancellationToken)
+        {
+            if (token is null)
+            {
+                throw new ArgumentNullException(nameof(token));
+            }
+
+            if (token.RedemptionDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.RedemptionDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -552,15 +578,15 @@ namespace OpenIddict.MongoDb
                 await (from token in collection.AsQueryable()
                        join authorization in database.GetCollection<OpenIddictMongoDbAuthorization>(Options.CurrentValue.AuthorizationsCollectionName).AsQueryable()
                                           on token.AuthorizationId equals authorization.Id into authorizations
-                       where token.CreationDate < threshold
+                       where token.CreationDate < threshold.UtcDateTime
                        where (token.Status != Statuses.Inactive && token.Status != Statuses.Valid) ||
                               token.ExpirationDate < DateTime.UtcNow ||
                               authorizations.Any(authorization => authorization.Status != Statuses.Valid)
                        select token.Id).ToListAsync(cancellationToken);
 
             // Note: to avoid generating delete requests with very large filters, a buffer is used here and the
-            // maximum number of elements that can be removed by a single call to PruneAsync() is limited to 50000.
-            foreach (var buffer in Buffer(identifiers.Take(50_000), 1_000))
+            // maximum number of elements that can be removed by a single call to PruneAsync() is deliberately limited.
+            foreach (var buffer in Buffer(identifiers.Take(1_000_000), 1_000))
             {
                 await collection.DeleteManyAsync(token => buffer.Contains(token.Id), cancellationToken);
             }
@@ -705,6 +731,19 @@ namespace OpenIddict.MongoDb
             writer.Flush();
 
             token.Properties = BsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
+
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public virtual ValueTask SetRedemptionDateAsync(TToken token, DateTimeOffset? date, CancellationToken cancellationToken)
+        {
+            if (token is null)
+            {
+                throw new ArgumentNullException(nameof(token));
+            }
+
+            token.RedemptionDate = date?.UtcDateTime;
 
             return default;
         }

@@ -111,7 +111,8 @@ namespace OpenIddict.Server.Owin
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2052, Parameters.RequestId]);
+                            description: SR.FormatID2052(Parameters.RequestId),
+                            uri: SR.FormatID8000(SR.ID2052));
 
                         return;
                     }
@@ -128,7 +129,8 @@ namespace OpenIddict.Server.Owin
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2052, Parameters.RequestId]);
+                            description: SR.FormatID2052(Parameters.RequestId),
+                            uri: SR.FormatID8000(SR.ID2052));
 
                         return;
                     }
@@ -221,25 +223,16 @@ namespace OpenIddict.Server.Owin
                     // Store the serialized logout request parameters in the distributed cache.
                     var token = context.Options.JsonWebTokenHandler.CreateToken(new SecurityTokenDescriptor
                     {
-                        AdditionalHeaderClaims = new Dictionary<string, object>(StringComparer.Ordinal)
-                        {
-                            [JwtHeaderParameterNames.Typ] = JsonWebTokenTypes.Private.LogoutRequest
-                        },
                         Audience = context.Issuer?.AbsoluteUri,
                         Claims = context.Request.GetParameters().ToDictionary(
                             parameter => parameter.Key,
                             parameter => parameter.Value.Value),
+                        EncryptingCredentials = context.Options.EncryptionCredentials.First(),
                         Issuer = context.Issuer?.AbsoluteUri,
                         SigningCredentials = context.Options.SigningCredentials.First(),
-                        Subject = new ClaimsIdentity()
+                        Subject = new ClaimsIdentity(),
+                        TokenType = JsonWebTokenTypes.Private.LogoutRequest
                     });
-
-                    token = context.Options.JsonWebTokenHandler.EncryptToken(token,
-                        encryptingCredentials: context.Options.EncryptionCredentials.First(),
-                        additionalHeaderClaims: new Dictionary<string, object>
-                        {
-                            [JwtHeaderParameterNames.Typ] = JsonWebTokenTypes.Private.LogoutRequest
-                        });
 
                     // Note: the cache key is always prefixed with a specific marker
                     // to avoid collisions with the other types of cached payloads.

@@ -319,6 +319,22 @@ namespace OpenIddict.Server
         }
 
         /// <summary>
+        /// Represents a filter that excludes the associated handlers if response type permissions were disabled.
+        /// </summary>
+        public class RequireResponseTypePermissionsEnabled : IOpenIddictServerHandlerFilter<BaseContext>
+        {
+            public ValueTask<bool> IsActiveAsync(BaseContext context)
+            {
+                if (context is null)
+                {
+                    throw new ArgumentNullException(nameof(context));
+                }
+
+                return new ValueTask<bool>(!context.Options.IgnoreResponseTypePermissions);
+            }
+        }
+
+        /// <summary>
         /// Represents a filter that excludes the associated handlers if the request is not a revocation request.
         /// </summary>
         public class RequireRevocationRequest : IOpenIddictServerHandlerFilter<BaseContext>
@@ -331,38 +347,6 @@ namespace OpenIddict.Server
                 }
 
                 return new ValueTask<bool>(context.EndpointType == OpenIddictServerEndpointType.Revocation);
-            }
-        }
-
-        /// <summary>
-        /// Represents a filter that excludes the associated handlers if rolling tokens were enabled.
-        /// </summary>
-        public class RequireRollingTokensDisabled : IOpenIddictServerHandlerFilter<BaseContext>
-        {
-            public ValueTask<bool> IsActiveAsync(BaseContext context)
-            {
-                if (context is null)
-                {
-                    throw new ArgumentNullException(nameof(context));
-                }
-
-                return new ValueTask<bool>(!context.Options.UseRollingRefreshTokens);
-            }
-        }
-
-        /// <summary>
-        /// Represents a filter that excludes the associated handlers if rolling refresh tokens were not enabled.
-        /// </summary>
-        public class RequireRollingRefreshTokensEnabled : IOpenIddictServerHandlerFilter<BaseContext>
-        {
-            public ValueTask<bool> IsActiveAsync(BaseContext context)
-            {
-                if (context is null)
-                {
-                    throw new ArgumentNullException(nameof(context));
-                }
-
-                return new ValueTask<bool>(context.Options.UseRollingRefreshTokens);
             }
         }
 

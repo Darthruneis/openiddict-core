@@ -371,7 +371,7 @@ namespace OpenIddict.Server
 
                     return default;
 
-                    static Uri? GetEndpointAbsoluteUri(Uri? issuer, Uri endpoint)
+                    static Uri? GetEndpointAbsoluteUri(Uri? issuer, Uri? endpoint)
                     {
                         // If the endpoint is disabled (i.e a null address is specified), return null.
                         if (endpoint is null)
@@ -393,14 +393,14 @@ namespace OpenIddict.Server
 
                         // Ensure the issuer ends with a trailing slash, as it is necessary
                         // for Uri's constructor to correctly compute correct absolute URLs.
-                        if (!issuer.OriginalString.EndsWith("/"))
+                        if (!issuer.OriginalString.EndsWith("/", StringComparison.Ordinal))
                         {
                             issuer = new Uri(issuer.OriginalString + "/", UriKind.Absolute);
                         }
 
                         // Ensure the endpoint does not start with a leading slash, as it is necessary
                         // for Uri's constructor to correctly compute correct absolute URLs.
-                        if (endpoint.OriginalString.StartsWith("/"))
+                        if (endpoint.OriginalString.StartsWith("/", StringComparison.Ordinal))
                         {
                             endpoint = new Uri(endpoint.OriginalString.Substring(1, endpoint.OriginalString.Length - 1), UriKind.Relative);
                         }
@@ -689,26 +689,26 @@ namespace OpenIddict.Server
                         var algorithm = credentials.Algorithm switch
                         {
 #if SUPPORTS_ECDSA
-                            SecurityAlgorithms.EcdsaSha256 => SecurityAlgorithms.EcdsaSha256,
-                            SecurityAlgorithms.EcdsaSha384 => SecurityAlgorithms.EcdsaSha384,
-                            SecurityAlgorithms.EcdsaSha512 => SecurityAlgorithms.EcdsaSha512,
-                            SecurityAlgorithms.EcdsaSha256Signature => SecurityAlgorithms.EcdsaSha256,
-                            SecurityAlgorithms.EcdsaSha384Signature => SecurityAlgorithms.EcdsaSha384,
-                            SecurityAlgorithms.EcdsaSha512Signature => SecurityAlgorithms.EcdsaSha512,
+                            SecurityAlgorithms.EcdsaSha256 or SecurityAlgorithms.EcdsaSha256Signature
+                                => SecurityAlgorithms.EcdsaSha256,
+                            SecurityAlgorithms.EcdsaSha384 or SecurityAlgorithms.EcdsaSha384Signature
+                                => SecurityAlgorithms.EcdsaSha384,
+                            SecurityAlgorithms.EcdsaSha512 or SecurityAlgorithms.EcdsaSha512Signature
+                                => SecurityAlgorithms.EcdsaSha512,
 #endif
-                            SecurityAlgorithms.RsaSha256 => SecurityAlgorithms.RsaSha256,
-                            SecurityAlgorithms.RsaSha384 => SecurityAlgorithms.RsaSha384,
-                            SecurityAlgorithms.RsaSha512 => SecurityAlgorithms.RsaSha512,
-                            SecurityAlgorithms.RsaSha256Signature => SecurityAlgorithms.RsaSha256,
-                            SecurityAlgorithms.RsaSha384Signature => SecurityAlgorithms.RsaSha384,
-                            SecurityAlgorithms.RsaSha512Signature => SecurityAlgorithms.RsaSha512,
+                            SecurityAlgorithms.RsaSha256 or SecurityAlgorithms.RsaSha256Signature
+                                => SecurityAlgorithms.RsaSha256,
+                            SecurityAlgorithms.RsaSha384 or SecurityAlgorithms.RsaSha384Signature
+                                => SecurityAlgorithms.RsaSha384,
+                            SecurityAlgorithms.RsaSha512 or SecurityAlgorithms.RsaSha512Signature
+                                => SecurityAlgorithms.RsaSha512,
 
-                            SecurityAlgorithms.RsaSsaPssSha256 => SecurityAlgorithms.RsaSsaPssSha256,
-                            SecurityAlgorithms.RsaSsaPssSha384 => SecurityAlgorithms.RsaSsaPssSha384,
-                            SecurityAlgorithms.RsaSsaPssSha512 => SecurityAlgorithms.RsaSsaPssSha512,
-                            SecurityAlgorithms.RsaSsaPssSha256Signature => SecurityAlgorithms.RsaSsaPssSha256,
-                            SecurityAlgorithms.RsaSsaPssSha384Signature => SecurityAlgorithms.RsaSsaPssSha384,
-                            SecurityAlgorithms.RsaSsaPssSha512Signature => SecurityAlgorithms.RsaSsaPssSha512,
+                            SecurityAlgorithms.RsaSsaPssSha256 or SecurityAlgorithms.RsaSsaPssSha256Signature
+                                => SecurityAlgorithms.RsaSsaPssSha256,
+                            SecurityAlgorithms.RsaSsaPssSha384 or SecurityAlgorithms.RsaSsaPssSha384Signature
+                                => SecurityAlgorithms.RsaSsaPssSha384,
+                            SecurityAlgorithms.RsaSsaPssSha512 or SecurityAlgorithms.RsaSsaPssSha512Signature
+                                => SecurityAlgorithms.RsaSsaPssSha512,
 
                             _ => null
                         };
@@ -1108,26 +1108,26 @@ namespace OpenIddict.Server
                             Alg = credentials.Algorithm switch
                             {
 #if SUPPORTS_ECDSA
-                                SecurityAlgorithms.EcdsaSha256 => SecurityAlgorithms.EcdsaSha256,
-                                SecurityAlgorithms.EcdsaSha384 => SecurityAlgorithms.EcdsaSha384,
-                                SecurityAlgorithms.EcdsaSha512 => SecurityAlgorithms.EcdsaSha512,
-                                SecurityAlgorithms.EcdsaSha256Signature => SecurityAlgorithms.EcdsaSha256,
-                                SecurityAlgorithms.EcdsaSha384Signature => SecurityAlgorithms.EcdsaSha384,
-                                SecurityAlgorithms.EcdsaSha512Signature => SecurityAlgorithms.EcdsaSha512,
+                                SecurityAlgorithms.EcdsaSha256 or SecurityAlgorithms.EcdsaSha256Signature
+                                    => SecurityAlgorithms.EcdsaSha256,
+                                SecurityAlgorithms.EcdsaSha384 or SecurityAlgorithms.EcdsaSha384Signature
+                                    => SecurityAlgorithms.EcdsaSha384,
+                                SecurityAlgorithms.EcdsaSha512 or SecurityAlgorithms.EcdsaSha512Signature
+                                    => SecurityAlgorithms.EcdsaSha512,
 #endif
-                                SecurityAlgorithms.RsaSha256 => SecurityAlgorithms.RsaSha256,
-                                SecurityAlgorithms.RsaSha384 => SecurityAlgorithms.RsaSha384,
-                                SecurityAlgorithms.RsaSha512 => SecurityAlgorithms.RsaSha512,
-                                SecurityAlgorithms.RsaSha256Signature => SecurityAlgorithms.RsaSha256,
-                                SecurityAlgorithms.RsaSha384Signature => SecurityAlgorithms.RsaSha384,
-                                SecurityAlgorithms.RsaSha512Signature => SecurityAlgorithms.RsaSha512,
+                                SecurityAlgorithms.RsaSha256 or SecurityAlgorithms.RsaSha256Signature
+                                    => SecurityAlgorithms.RsaSha256,
+                                SecurityAlgorithms.RsaSha384 or SecurityAlgorithms.RsaSha384Signature
+                                    => SecurityAlgorithms.RsaSha384,
+                                SecurityAlgorithms.RsaSha512 or SecurityAlgorithms.RsaSha512Signature
+                                    => SecurityAlgorithms.RsaSha512,
 
-                                SecurityAlgorithms.RsaSsaPssSha256 => SecurityAlgorithms.RsaSsaPssSha256,
-                                SecurityAlgorithms.RsaSsaPssSha384 => SecurityAlgorithms.RsaSsaPssSha384,
-                                SecurityAlgorithms.RsaSsaPssSha512 => SecurityAlgorithms.RsaSsaPssSha512,
-                                SecurityAlgorithms.RsaSsaPssSha256Signature => SecurityAlgorithms.RsaSsaPssSha256,
-                                SecurityAlgorithms.RsaSsaPssSha384Signature => SecurityAlgorithms.RsaSsaPssSha384,
-                                SecurityAlgorithms.RsaSsaPssSha512Signature => SecurityAlgorithms.RsaSsaPssSha512,
+                                SecurityAlgorithms.RsaSsaPssSha256 or SecurityAlgorithms.RsaSsaPssSha256Signature
+                                    => SecurityAlgorithms.RsaSsaPssSha256,
+                                SecurityAlgorithms.RsaSsaPssSha384 or SecurityAlgorithms.RsaSsaPssSha384Signature
+                                    => SecurityAlgorithms.RsaSsaPssSha384,
+                                SecurityAlgorithms.RsaSsaPssSha512 or SecurityAlgorithms.RsaSsaPssSha512Signature
+                                    => SecurityAlgorithms.RsaSsaPssSha512,
 
                                 _ => null
                             },
@@ -1146,13 +1146,10 @@ namespace OpenIddict.Server
 
                             var parameters = credentials.Key switch
                             {
-                                X509SecurityKey x509SecurityKey when x509SecurityKey.PublicKey is RSA algorithm =>
-                                    algorithm.ExportParameters(includePrivateParameters: false),
+                                X509SecurityKey { PublicKey: RSA algorithm } => algorithm.ExportParameters(includePrivateParameters: false),
 
-                                RsaSecurityKey rsaSecurityKey when rsaSecurityKey.Rsa is not null =>
-                                    rsaSecurityKey.Rsa.ExportParameters(includePrivateParameters: false),
-
-                                RsaSecurityKey rsaSecurityKey => rsaSecurityKey.Parameters,
+                                RsaSecurityKey { Rsa:        RSA algorithm       } => algorithm.ExportParameters(includePrivateParameters: false),
+                                RsaSecurityKey { Parameters: RSAParameters value } => value,
 
                                 _ => (RSAParameters?) null
                             };
@@ -1182,11 +1179,9 @@ namespace OpenIddict.Server
                         {
                             var parameters = credentials.Key switch
                             {
-                                X509SecurityKey x509SecurityKey when x509SecurityKey.PublicKey is ECDsa algorithm =>
-                                    algorithm.ExportParameters(includePrivateParameters: false),
+                                X509SecurityKey { PublicKey: ECDsa algorithm } => algorithm.ExportParameters(includePrivateParameters: false),
 
-                                ECDsaSecurityKey ecdsaSecurityKey when ecdsaSecurityKey.ECDsa is not null =>
-                                    ecdsaSecurityKey.ECDsa.ExportParameters(includePrivateParameters: false),
+                                ECDsaSecurityKey { ECDsa: ECDsa algorithm } => algorithm.ExportParameters(includePrivateParameters: false),
 
                                 _ => (ECParameters?) null
                             };
@@ -1198,15 +1193,25 @@ namespace OpenIddict.Server
                                 continue;
                             }
 
+                            var curve = IsCurve(parameters.Value, ECCurve.NamedCurves.nistP256) ? JsonWebKeyECTypes.P256 :
+                                        IsCurve(parameters.Value, ECCurve.NamedCurves.nistP384) ? JsonWebKeyECTypes.P384 :
+                                        IsCurve(parameters.Value, ECCurve.NamedCurves.nistP521) ? JsonWebKeyECTypes.P521 : null;
+
+                            if (string.IsNullOrEmpty(curve))
+                            {
+                                context.Logger.LogWarning(SR.GetResourceString(SR.ID6167), credentials.Key.GetType().Name);
+
+                                continue;
+                            }
+
                             Debug.Assert(parameters.Value.Q.X is not null &&
                                          parameters.Value.Q.Y is not null, SR.GetResourceString(SR.ID4004));
 
+                            Debug.Assert(parameters.Value.Curve.Oid is not null, SR.GetResourceString(SR.ID4011));
                             Debug.Assert(parameters.Value.Curve.IsNamed, SR.GetResourceString(SR.ID4005));
 
                             key.Kty = JsonWebAlgorithmsKeyTypes.EllipticCurve;
-                            key.Crv = IsCurve(parameters.Value, ECCurve.NamedCurves.nistP256) ? JsonWebKeyECTypes.P256 :
-                                      IsCurve(parameters.Value, ECCurve.NamedCurves.nistP384) ? JsonWebKeyECTypes.P384 :
-                                      IsCurve(parameters.Value, ECCurve.NamedCurves.nistP521) ? JsonWebKeyECTypes.P521 : null;
+                            key.Crv = curve;
 
                             // Note: both X and Y must be base64url-encoded.
                             // See https://tools.ietf.org/html/rfc7518#section-6.2.1.2
@@ -1240,8 +1245,27 @@ namespace OpenIddict.Server
                     return default;
 
 #if SUPPORTS_ECDSA
-                    static bool IsCurve(ECParameters parameters, ECCurve curve) =>
-                        string.Equals(parameters.Curve.Oid.FriendlyName, curve.Oid.FriendlyName, StringComparison.Ordinal);
+                    static bool IsCurve(ECParameters parameters, ECCurve curve)
+                    {
+                        Debug.Assert(parameters.Curve.Oid is not null, SR.GetResourceString(SR.ID4011));
+                        Debug.Assert(curve.Oid is not null, SR.GetResourceString(SR.ID4011));
+
+                        // Warning: on .NET Framework 4.x and .NET Core 2.1, exported ECParameters generally have
+                        // a null OID value attached. To work around this limitation, both the raw OID values and
+                        // the friendly names are compared to determine whether the curve is of the specified type.
+                        if (!string.IsNullOrEmpty(parameters.Curve.Oid.Value) && !string.IsNullOrEmpty(curve.Oid.Value))
+                        {
+                            return string.Equals(parameters.Curve.Oid.Value, curve.Oid.Value, StringComparison.Ordinal);
+                        }
+
+                        if (!string.IsNullOrEmpty(parameters.Curve.Oid.FriendlyName) && !string.IsNullOrEmpty(curve.Oid.FriendlyName))
+                        {
+                            return string.Equals(parameters.Curve.Oid.FriendlyName, curve.Oid.FriendlyName, StringComparison.Ordinal);
+                        }
+
+                        Debug.Fail(SR.GetResourceString(SR.ID4012));
+                        return false;
+                    }
 #endif
 
                     static byte[] GetCertificateHash(X509Certificate2 certificate, HashAlgorithmName algorithm)
@@ -1249,7 +1273,7 @@ namespace OpenIddict.Server
 #if SUPPORTS_CERTIFICATE_HASHING_WITH_SPECIFIED_ALGORITHM
                         return certificate.GetCertHash(algorithm);
 #else
-                        using var hash = CryptoConfig.CreateFromName(algorithm.Name) as HashAlgorithm;
+                        using var hash = CryptoConfig.CreateFromName(algorithm.Name!) as HashAlgorithm;
                         if (hash is null || hash is KeyedHashAlgorithm)
                         {
                             throw new InvalidOperationException(SR.GetResourceString(SR.ID0217));

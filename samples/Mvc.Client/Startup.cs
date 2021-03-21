@@ -20,7 +20,7 @@ namespace Mvc.Client
 
             .AddCookie(options =>
             {
-                options.LoginPath = new PathString("/signin");
+                options.LoginPath = "/login";
             })
 
             .AddOpenIdConnect(options =>
@@ -41,7 +41,7 @@ namespace Mvc.Client
                 // Note: setting the Authority allows the OIDC client middleware to automatically
                 // retrieve the identity provider's configuration and spare you from setting
                 // the different endpoints URIs or the token validation parameters explicitly.
-                options.Authority = "http://localhost:54540/";
+                options.Authority = "https://localhost:44395/";
 
                 options.Scope.Add("email");
                 options.Scope.Add("roles");

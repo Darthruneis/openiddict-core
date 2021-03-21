@@ -371,7 +371,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2029, Parameters.Token]);
+                            description: SR.FormatID2029(Parameters.Token),
+                            uri: SR.FormatID8000(SR.ID2029));
 
                         return default;
                     }
@@ -410,7 +411,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2029, Parameters.ClientId]);
+                            description: SR.FormatID2029(Parameters.ClientId),
+                            uri: SR.FormatID8000(SR.ID2029));
 
                         return default;
                     }
@@ -463,7 +465,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2052, Parameters.ClientId]);
+                            description: SR.FormatID2052(Parameters.ClientId),
+                            uri: SR.FormatID8000(SR.ID2052));
 
                         return;
                     }
@@ -521,7 +524,8 @@ namespace OpenIddict.Server
 
                             context.Reject(
                                 error: Errors.InvalidClient,
-                                description: context.Localizer[SR.ID2053, Parameters.ClientSecret]);
+                                description: SR.FormatID2053(Parameters.ClientSecret),
+                                uri: SR.FormatID8000(SR.ID2053));
 
                             return;
                         }
@@ -536,7 +540,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2054, Parameters.ClientSecret]);
+                            description: SR.FormatID2054(Parameters.ClientSecret),
+                            uri: SR.FormatID8000(SR.ID2054));
 
                         return;
                     }
@@ -598,7 +603,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2055]);
+                            description: SR.GetResourceString(SR.ID2055),
+                            uri: SR.FormatID8000(SR.ID2055));
 
                         return;
                     }
@@ -655,7 +661,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.UnauthorizedClient,
-                            description: context.Localizer[SR.ID2075]);
+                            description: SR.GetResourceString(SR.ID2075),
+                            uri: SR.FormatID8000(SR.ID2075));
 
                         return;
                     }
@@ -742,7 +749,7 @@ namespace OpenIddict.Server
                         throw new ArgumentNullException(nameof(context));
                     }
 
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     if (!context.Principal.HasTokenType(TokenTypeHints.AccessToken) &&
                         !context.Principal.HasTokenType(TokenTypeHints.RefreshToken))
@@ -751,7 +758,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.UnsupportedTokenType,
-                            description: context.Localizer[SR.ID2076]);
+                            description: SR.GetResourceString(SR.ID2076),
+                            uri: SR.FormatID8000(SR.ID2076));
 
                         return default;
                     }
@@ -789,21 +797,22 @@ namespace OpenIddict.Server
                     }
 
                     Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     // When the introspected token is an access token, the caller must be listed either as a presenter
                     // (i.e the party the token was issued to) or as an audience (i.e a resource server/API).
                     // If the access token doesn't contain any explicit presenter/audience, the token is assumed
                     // to be not specific to any resource server/client application and the check is bypassed.
                     if (context.Principal.HasTokenType(TokenTypeHints.AccessToken) &&
-                        context.Principal.HasAudience() && !context.Principal.HasAudience(context.ClientId) &&
-                        context.Principal.HasPresenter() && !context.Principal.HasPresenter(context.ClientId))
+                        context.Principal.HasClaim(Claims.Private.Audience) && !context.Principal.HasAudience(context.ClientId) &&
+                        context.Principal.HasClaim(Claims.Private.Presenter) && !context.Principal.HasPresenter(context.ClientId))
                     {
                         context.Logger.LogError(SR.GetResourceString(SR.ID6106));
 
                         context.Reject(
                             error: Errors.InvalidToken,
-                            description: context.Localizer[SR.ID2077]);
+                            description: SR.GetResourceString(SR.ID2077),
+                            uri: SR.FormatID8000(SR.ID2077));
 
                         return default;
                     }
@@ -813,13 +822,14 @@ namespace OpenIddict.Server
                     // If the refresh token doesn't contain any explicit presenter, the token is
                     // assumed to be not specific to any client application and the check is bypassed.
                     if (context.Principal.HasTokenType(TokenTypeHints.RefreshToken) &&
-                        context.Principal.HasPresenter() && !context.Principal.HasPresenter(context.ClientId))
+                        context.Principal.HasClaim(Claims.Private.Presenter) && !context.Principal.HasPresenter(context.ClientId))
                     {
                         context.Logger.LogError(SR.GetResourceString(SR.ID6108));
 
                         context.Reject(
                             error: Errors.InvalidToken,
-                            description: context.Localizer[SR.ID2077]);
+                            description: SR.GetResourceString(SR.ID2077),
+                            uri: SR.FormatID8000(SR.ID2077));
 
                         return default;
                     }
@@ -885,7 +895,7 @@ namespace OpenIddict.Server
                         throw new ArgumentNullException(nameof(context));
                     }
 
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     context.TokenId = context.Principal.GetClaim(Claims.JwtId);
                     context.TokenUsage = context.Principal.GetTokenType();
@@ -894,11 +904,10 @@ namespace OpenIddict.Server
                     context.IssuedAt = context.NotBefore = context.Principal.GetCreationDate();
                     context.ExpiresAt = context.Principal.GetExpirationDate();
 
-                    // Infer the audiences/client_id claims from the properties stored in the security principal.
-                    // Note: the client_id claim must be a unique string so multiple presenters cannot be returned.
-                    // To work around this limitation, only the first one is returned if multiple values are listed.
+                    // Infer the audiences/client_id from the claims stored in the security principal.
                     context.Audiences.UnionWith(context.Principal.GetAudiences());
-                    context.ClientId = context.Principal.GetPresenters().FirstOrDefault();
+                    context.ClientId = context.Principal.GetClaim(Claims.ClientId) ??
+                                       context.Principal.GetPresenters().FirstOrDefault();
 
                     // Note: only set "token_type" when the received token is an access token.
                     // See https://tools.ietf.org/html/rfc7662#section-2.2
@@ -946,7 +955,7 @@ namespace OpenIddict.Server
                     }
 
                     Debug.Assert(!string.IsNullOrEmpty(context.Request.ClientId), SR.FormatID4000(Parameters.ClientId));
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     // Don't return application-specific claims if the token is not an access token.
                     if (!context.Principal.HasTokenType(TokenTypeHints.AccessToken))
@@ -954,11 +963,12 @@ namespace OpenIddict.Server
                         return;
                     }
 
-                    // Only the specified audience (i.e the resource server for an access token
-                    // and the client application for an identity token) can access the sensitive
-                    // application-specific claims contained in the introspected access/identity token.
+                    // Only specified audiences (that were explicitly defined as allowed resources) can access
+                    // the sensitive application-specific claims contained in the introspected access token.
                     if (!context.Principal.HasAudience(context.Request.ClientId))
                     {
+                        context.Logger.LogInformation(SR.GetResourceString(SR.ID6105), context.Request.ClientId);
+
                         return;
                     }
 
@@ -971,29 +981,24 @@ namespace OpenIddict.Server
                     // Public clients are not allowed to access sensitive claims as authentication cannot be enforced.
                     if (await _applicationManager.HasClientTypeAsync(application, ClientTypes.Public))
                     {
+                        context.Logger.LogInformation(SR.GetResourceString(SR.ID6107), context.Request.ClientId);
+
                         return;
                     }
 
                     context.Username = context.Principal.Identity.Name;
                     context.Scopes.UnionWith(context.Principal.GetScopes());
 
-                    foreach (var grouping in context.Principal.Claims.GroupBy(claim => claim.Type))
+                    foreach (var group in context.Principal.Claims.GroupBy(claim => claim.Type))
                     {
                         // Exclude standard claims, that are already handled via strongly-typed properties.
                         // Make sure to always update this list when adding new built-in claim properties.
-                        var type = grouping.Key;
-                        switch (type)
+                        var type = group.Key;
+                        if (type is Claims.Audience or Claims.ExpiresAt or Claims.IssuedAt or
+                                    Claims.Issuer   or Claims.NotBefore or Claims.Scope or
+                                    Claims.Subject  or Claims.TokenType or Claims.TokenUsage)
                         {
-                            case Claims.Audience:
-                            case Claims.ExpiresAt:
-                            case Claims.IssuedAt:
-                            case Claims.Issuer:
-                            case Claims.NotBefore:
-                            case Claims.Scope:
-                            case Claims.Subject:
-                            case Claims.TokenType:
-                            case Claims.TokenUsage:
-                                continue;
+                            continue;
                         }
 
                         // Exclude OpenIddict-specific metadata claims, that are always considered private.
@@ -1002,7 +1007,7 @@ namespace OpenIddict.Server
                             continue;
                         }
 
-                        var claims = grouping.ToList();
+                        var claims = group.ToList();
                         context.Claims[type] = claims.Count switch
                         {
                             // When there's only one claim with the same type, directly
@@ -1019,12 +1024,12 @@ namespace OpenIddict.Server
                     {
                         ClaimValueTypes.Boolean => bool.Parse(claim.Value),
 
-                        ClaimValueTypes.Integer   => int.Parse(claim.Value, CultureInfo.InvariantCulture),
-                        ClaimValueTypes.Integer32 => int.Parse(claim.Value, CultureInfo.InvariantCulture),
+                        ClaimValueTypes.Integer or ClaimValueTypes.Integer32
+                            => int.Parse(claim.Value, CultureInfo.InvariantCulture),
+
                         ClaimValueTypes.Integer64 => long.Parse(claim.Value, CultureInfo.InvariantCulture),
 
-                        JsonClaimValueTypes.Json      => DeserializeElement(claim.Value),
-                        JsonClaimValueTypes.JsonArray => DeserializeElement(claim.Value),
+                        JsonClaimValueTypes.Json or JsonClaimValueTypes.JsonArray => DeserializeElement(claim.Value),
 
                         _ => new OpenIddictParameter(claim.Value)
                     };

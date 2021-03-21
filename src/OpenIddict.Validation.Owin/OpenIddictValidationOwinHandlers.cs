@@ -20,6 +20,7 @@ using Microsoft.Owin.Security;
 using Owin;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 using static OpenIddict.Validation.OpenIddictValidationEvents;
+using static OpenIddict.Validation.Owin.OpenIddictValidationOwinConstants;
 using static OpenIddict.Validation.Owin.OpenIddictValidationOwinHandlerFilters;
 using Properties = OpenIddict.Validation.Owin.OpenIddictValidationOwinConstants.Properties;
 using SR = OpenIddict.Abstractions.OpenIddictResources;
@@ -106,7 +107,8 @@ namespace OpenIddict.Validation.Owin
                 {
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2081, "Host"]);
+                        description: SR.FormatID2081(Headers.Host),
+                        uri: SR.FormatID8000(SR.ID2081));
 
                     return default;
                 }
@@ -116,7 +118,8 @@ namespace OpenIddict.Validation.Owin
                 {
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2082, "Host"]);
+                        description: SR.FormatID2082(Headers.Host),
+                        uri: SR.FormatID8000(SR.ID2082));
 
                     return default;
                 }
@@ -168,7 +171,7 @@ namespace OpenIddict.Validation.Owin
 
                 // Resolve the access token from the standard Authorization header.
                 // See https://tools.ietf.org/html/rfc6750#section-2.1 for more information.
-                string header = request.Headers["Authorization"];
+                string header = request.Headers[Headers.Authorization];
                 if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 {
                     context.Token = header.Substring("Bearer ".Length);
@@ -374,11 +377,9 @@ namespace OpenIddict.Validation.Owin
                 {
                     null => 200,
 
-                    Errors.InvalidToken => 401,
-                    Errors.MissingToken => 401,
+                    Errors.InvalidToken or Errors.MissingToken => 401,
 
-                    Errors.InsufficientAccess => 403,
-                    Errors.InsufficientScope  => 403,
+                    Errors.InsufficientAccess or Errors.InsufficientScope => 403,
 
                     _ => 400
                 };
@@ -421,9 +422,9 @@ namespace OpenIddict.Validation.Owin
                 }
 
                 // Prevent the response from being cached.
-                response.Headers["Cache-Control"] = "no-store";
-                response.Headers["Pragma"] = "no-cache";
-                response.Headers["Expires"] = "Thu, 01 Jan 1970 00:00:00 GMT";
+                response.Headers[Headers.CacheControl] = "no-store";
+                response.Headers[Headers.Pragma] = "no-cache";
+                response.Headers[Headers.Expires] = "Thu, 01 Jan 1970 00:00:00 GMT";
 
                 return default;
             }
@@ -476,10 +477,10 @@ namespace OpenIddict.Validation.Owin
 
                 var scheme = context.Transaction.Response.Error switch
                 {
-                    Errors.InvalidToken       => Schemes.Bearer,
-                    Errors.MissingToken       => Schemes.Bearer,
-                    Errors.InsufficientAccess => Schemes.Bearer,
-                    Errors.InsufficientScope  => Schemes.Bearer,
+                    Errors.InvalidToken or
+                    Errors.MissingToken or
+                    Errors.InsufficientAccess or
+                    Errors.InsufficientScope => Schemes.Bearer,
 
                     _ => null
                 };
@@ -538,7 +539,7 @@ namespace OpenIddict.Validation.Owin
                     builder.Remove(builder.Length - 1, 1);
                 }
 
-                response.Headers.Append("WWW-Authenticate", builder.ToString());
+                response.Headers.Append(Headers.WwwAuthenticate, builder.ToString());
 
                 return default;
             }
@@ -578,7 +579,7 @@ namespace OpenIddict.Validation.Owin
                 }
 
                 // If the response doesn't contain a WWW-Authenticate header, don't return an empty response.
-                if (!response.Headers.ContainsKey("WWW-Authenticate"))
+                if (!response.Headers.ContainsKey(Headers.WwwAuthenticate))
                 {
                     return default;
                 }

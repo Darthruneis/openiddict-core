@@ -112,7 +112,8 @@ namespace OpenIddict.Server.AspNetCore
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2052, Parameters.RequestId]);
+                            description: SR.FormatID2052(Parameters.RequestId),
+                            uri: SR.FormatID8000(SR.ID2052));
 
                         return;
                     }
@@ -129,7 +130,8 @@ namespace OpenIddict.Server.AspNetCore
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2052, Parameters.RequestId]);
+                            description: SR.FormatID2052(Parameters.RequestId),
+                            uri: SR.FormatID8000(SR.ID2052));
 
                         return;
                     }
@@ -227,25 +229,16 @@ namespace OpenIddict.Server.AspNetCore
                     // Store the serialized logout request parameters in the distributed cache.
                     var token = context.Options.JsonWebTokenHandler.CreateToken(new SecurityTokenDescriptor
                     {
-                        AdditionalHeaderClaims = new Dictionary<string, object>(StringComparer.Ordinal)
-                        {
-                            [JwtHeaderParameterNames.Typ] = JsonWebTokenTypes.Private.LogoutRequest
-                        },
                         Audience = context.Issuer?.AbsoluteUri,
                         Claims = context.Request.GetParameters().ToDictionary(
                             parameter => parameter.Key,
                             parameter => parameter.Value.Value),
+                        EncryptingCredentials = context.Options.EncryptionCredentials.First(),
                         Issuer = context.Issuer?.AbsoluteUri,
                         SigningCredentials = context.Options.SigningCredentials.First(),
-                        Subject = new ClaimsIdentity()
+                        Subject = new ClaimsIdentity(),
+                        TokenType = JsonWebTokenTypes.Private.LogoutRequest
                     });
-
-                    token = context.Options.JsonWebTokenHandler.EncryptToken(token,
-                        encryptingCredentials: context.Options.EncryptionCredentials.First(),
-                        additionalHeaderClaims: new Dictionary<string, object>
-                        {
-                            [JwtHeaderParameterNames.Typ] = JsonWebTokenTypes.Private.LogoutRequest
-                        });
 
                     // Note: the cache key is always prefixed with a specific marker
                     // to avoid collisions with the other types of cached payloads.
@@ -353,11 +346,21 @@ namespace OpenIddict.Server.AspNetCore
 
                     context.Logger.LogInformation(SR.GetResourceString(SR.ID6151), context.PostLogoutRedirectUri, response);
 
-                    var location = context.PostLogoutRedirectUri;
-
                     // Note: while initially not allowed by the core OAuth 2.0 specification, multiple parameters
                     // with the same name are used by derived drafts like the OAuth 2.0 token exchange specification.
                     // For consistency, multiple parameters with the same name are also supported by this endpoint.
+
+#if SUPPORTS_MULTIPLE_VALUES_IN_QUERYHELPERS
+                    var location = QueryHelpers.AddQueryString(context.PostLogoutRedirectUri,
+                        from parameter in context.Response.GetParameters()
+                        let values = (string?[]?) parameter.Value
+                        where values is not null
+                        from value in values
+                        where !string.IsNullOrEmpty(value)
+                        select KeyValuePair.Create(parameter.Key, value));
+#else
+                    var location = context.PostLogoutRedirectUri;
+
                     foreach (var (key, value) in
                         from parameter in context.Response.GetParameters()
                         let values = (string?[]?) parameter.Value
@@ -368,7 +371,7 @@ namespace OpenIddict.Server.AspNetCore
                     {
                         location = QueryHelpers.AddQueryString(location, key, value);
                     }
-
+#endif
                     response.Redirect(location);
                     context.HandleRequest();
 

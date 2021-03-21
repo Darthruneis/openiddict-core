@@ -12,9 +12,9 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -36,13 +36,11 @@ namespace OpenIddict.Core
     {
         public OpenIddictScopeManager(
             IOpenIddictScopeCache<TScope> cache,
-            IStringLocalizer<OpenIddictResources> localizer,
             ILogger<OpenIddictScopeManager<TScope>> logger,
             IOptionsMonitor<OpenIddictCoreOptions> options,
             IOpenIddictScopeStoreResolver resolver)
         {
             Cache = cache;
-            Localizer = localizer;
             Logger = logger;
             Options = options;
             Store = resolver.Get<TScope>();
@@ -52,11 +50,6 @@ namespace OpenIddict.Core
         /// Gets the cache associated with the current manager.
         /// </summary>
         protected IOpenIddictScopeCache<TScope> Cache { get; }
-
-        /// <summary>
-        /// Gets the string localizer associated with the current manager.
-        /// </summary>
-        protected IStringLocalizer Localizer { get; }
 
         /// <summary>
         /// Gets the logger associated with the current manager.
@@ -659,6 +652,26 @@ namespace OpenIddict.Core
         }
 
         /// <summary>
+        /// Retrieves the additional properties associated with a scope.
+        /// </summary>
+        /// <param name="scope">The scope.</param>
+        /// <param name="cancellationToken">The <see cref="CancellationToken"/> that can be used to abort the operation.</param>
+        /// <returns>
+        /// A <see cref="ValueTask{TResult}"/> that can be used to monitor the asynchronous operation,
+        /// whose result returns all the additional properties associated with the scope.
+        /// </returns>
+        public virtual ValueTask<ImmutableDictionary<string, JsonElement>> GetPropertiesAsync(
+            TScope scope, CancellationToken cancellationToken = default)
+        {
+            if (scope is null)
+            {
+                throw new ArgumentNullException(nameof(scope));
+            }
+
+            return Store.GetPropertiesAsync(scope, cancellationToken);
+        }
+
+        /// <summary>
         /// Retrieves the resources associated with a scope.
         /// </summary>
         /// <param name="scope">The scope.</param>
@@ -777,6 +790,7 @@ namespace OpenIddict.Core
             await Store.SetDisplayNameAsync(scope, descriptor.DisplayName, cancellationToken);
             await Store.SetDisplayNamesAsync(scope, descriptor.DisplayNames.ToImmutableDictionary(), cancellationToken);
             await Store.SetNameAsync(scope, descriptor.Name, cancellationToken);
+            await Store.SetPropertiesAsync(scope, descriptor.Properties.ToImmutableDictionary(), cancellationToken);
             await Store.SetResourcesAsync(scope, descriptor.Resources.ToImmutableArray(), cancellationToken);
         }
 
@@ -819,6 +833,12 @@ namespace OpenIddict.Core
             foreach (var pair in await Store.GetDescriptionsAsync(scope, cancellationToken))
             {
                 descriptor.Descriptions.Add(pair.Key, pair.Value);
+            }
+
+            descriptor.Properties.Clear();
+            foreach (var pair in await Store.GetPropertiesAsync(scope, cancellationToken))
+            {
+                descriptor.Properties.Add(pair.Key, pair.Value);
             }
         }
 
@@ -919,12 +939,12 @@ namespace OpenIddict.Core
             var name = await Store.GetNameAsync(scope, cancellationToken);
             if (string.IsNullOrEmpty(name))
             {
-                yield return new ValidationResult(Localizer[SR.ID2044]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2044));
             }
 
             else if (name!.Contains(Separators.Space[0]))
             {
-                yield return new ValidationResult(Localizer[SR.ID2045]);
+                yield return new ValidationResult(SR.GetResourceString(SR.ID2045));
             }
 
             else
@@ -938,7 +958,7 @@ namespace OpenIddict.Core
                     await Store.GetIdAsync(other, cancellationToken),
                     await Store.GetIdAsync(scope, cancellationToken), StringComparison.Ordinal))
                 {
-                    yield return new ValidationResult(Localizer[SR.ID2060]);
+                    yield return new ValidationResult(SR.GetResourceString(SR.ID2060));
                 }
             }
         }
@@ -1026,6 +1046,10 @@ namespace OpenIddict.Core
         /// <inheritdoc/>
         ValueTask<string?> IOpenIddictScopeManager.GetNameAsync(object scope, CancellationToken cancellationToken)
             => GetNameAsync((TScope) scope, cancellationToken);
+
+        /// <inheritdoc/>
+        ValueTask<ImmutableDictionary<string, JsonElement>> IOpenIddictScopeManager.GetPropertiesAsync(object scope, CancellationToken cancellationToken)
+            => GetPropertiesAsync((TScope) scope, cancellationToken);
 
         /// <inheritdoc/>
         ValueTask<ImmutableArray<string>> IOpenIddictScopeManager.GetResourcesAsync(object scope, CancellationToken cancellationToken)

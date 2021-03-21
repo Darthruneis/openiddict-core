@@ -199,7 +199,7 @@ namespace OpenIddict.EntityFrameworkCore
                     where token.Subject == subject
                     join application in Applications.AsTracking() on token.Application!.Id equals application.Id
                     where application.Id!.Equals(key)
-                    select token).AsAsyncEnumerable();
+                    select token).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -234,7 +234,7 @@ namespace OpenIddict.EntityFrameworkCore
                           token.Status == status
                     join application in Applications.AsTracking() on token.Application!.Id equals application.Id
                     where application.Id!.Equals(key)
-                    select token).AsAsyncEnumerable();
+                    select token).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -275,7 +275,7 @@ namespace OpenIddict.EntityFrameworkCore
                           token.Type == type
                     join application in Applications.AsTracking() on token.Application!.Id equals application.Id
                     where application.Id!.Equals(key)
-                    select token).AsAsyncEnumerable();
+                    select token).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -296,7 +296,7 @@ namespace OpenIddict.EntityFrameworkCore
             return (from token in Tokens.Include(token => token.Application).Include(token => token.Authorization).AsTracking()
                     join application in Applications.AsTracking() on token.Application!.Id equals application.Id
                     where application.Id!.Equals(key)
-                    select token).AsAsyncEnumerable();
+                    select token).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -317,7 +317,7 @@ namespace OpenIddict.EntityFrameworkCore
             return (from token in Tokens.Include(token => token.Application).Include(token => token.Authorization).AsTracking()
                     join authorization in Authorizations.AsTracking() on token.Authorization!.Id equals authorization.Id
                     where authorization.Id!.Equals(key)
-                    select token).AsAsyncEnumerable();
+                    select token).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -358,7 +358,7 @@ namespace OpenIddict.EntityFrameworkCore
 
             return (from token in Tokens.Include(token => token.Application).Include(token => token.Authorization).AsTracking()
                     where token.Subject == subject
-                    select token).AsAsyncEnumerable();
+                    select token).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -441,7 +441,12 @@ namespace OpenIddict.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(token));
             }
 
-            return new ValueTask<DateTimeOffset?>(token.CreationDate);
+            if (token.CreationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.CreationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -452,7 +457,12 @@ namespace OpenIddict.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(token));
             }
 
-            return new ValueTask<DateTimeOffset?>(token.ExpirationDate);
+            if (token.ExpirationDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.ExpirationDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -510,6 +520,22 @@ namespace OpenIddict.EntityFrameworkCore
             });
 
             return new ValueTask<ImmutableDictionary<string, JsonElement>>(properties);
+        }
+
+        /// <inheritdoc/>
+        public virtual ValueTask<DateTimeOffset?> GetRedemptionDateAsync(TToken token, CancellationToken cancellationToken)
+        {
+            if (token is null)
+            {
+                throw new ArgumentNullException(nameof(token));
+            }
+
+            if (token.RedemptionDate is null)
+            {
+                return new ValueTask<DateTimeOffset?>(result: null);
+            }
+
+            return new ValueTask<DateTimeOffset?>(DateTime.SpecifyKind(token.RedemptionDate.Value, DateTimeKind.Utc));
         }
 
         /// <inheritdoc/>
@@ -589,7 +615,7 @@ namespace OpenIddict.EntityFrameworkCore
                 query = query.Take(count.Value);
             }
 
-            return query.AsAsyncEnumerable();
+            return query.AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -605,7 +631,7 @@ namespace OpenIddict.EntityFrameworkCore
             return query(
                 Tokens.Include(token => token.Application)
                       .Include(token => token.Authorization)
-                      .AsTracking(), state).AsAsyncEnumerable();
+                      .AsTracking(), state).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -644,8 +670,8 @@ namespace OpenIddict.EntityFrameworkCore
             }
 
             // Note: to avoid sending too many queries, the maximum number of elements
-            // that can be removed by a single call to PruneAsync() is limited to 50000.
-            for (var offset = 0; offset < 50_000; offset += 1_000)
+            // that can be removed by a single call to PruneAsync() is deliberately limited.
+            for (var index = 0; index < 1_000; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -657,12 +683,12 @@ namespace OpenIddict.EntityFrameworkCore
 
                 var tokens = await
                     (from token in Tokens.AsTracking()
-                     where token.CreationDate < threshold
+                     where token.CreationDate < threshold.UtcDateTime
                      where (token.Status != Statuses.Inactive && token.Status != Statuses.Valid) ||
                            (token.Authorization != null && token.Authorization.Status != Statuses.Valid) ||
-                            token.ExpirationDate < DateTimeOffset.UtcNow
+                            token.ExpirationDate < DateTime.UtcNow
                      orderby token.Id
-                     select token).Skip(offset).Take(1_000).ToListAsync(cancellationToken);
+                     select token).Take(1_000).ToListAsync(cancellationToken);
 
                 if (tokens.Count == 0)
                 {
@@ -704,8 +730,10 @@ namespace OpenIddict.EntityFrameworkCore
 
                 // Warning: FindAsync() is deliberately not used to work around a breaking change introduced
                 // in Entity Framework Core 3.x (where a ValueTask instead of a Task is now returned).
-                var application = await Applications.AsQueryable()
-                    .FirstOrDefaultAsync(application => application.Id!.Equals(key), cancellationToken);
+                var application =
+                    await Applications.AsQueryable()
+                                      .AsTracking()
+                                      .FirstOrDefaultAsync(application => application.Id!.Equals(key), cancellationToken);
 
                 if (application is null)
                 {
@@ -747,8 +775,10 @@ namespace OpenIddict.EntityFrameworkCore
 
                 // Warning: FindAsync() is deliberately not used to work around a breaking change introduced
                 // in Entity Framework Core 3.x (where a ValueTask instead of a Task is now returned).
-                var authorization = await Authorizations.AsQueryable()
-                    .FirstOrDefaultAsync(authorization => authorization.Id!.Equals(key), cancellationToken);
+                var authorization =
+                    await Authorizations.AsQueryable()
+                                        .AsTracking()
+                                        .FirstOrDefaultAsync(authorization => authorization.Id!.Equals(key), cancellationToken);
 
                 if (authorization is null)
                 {
@@ -784,7 +814,7 @@ namespace OpenIddict.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(token));
             }
 
-            token.CreationDate = date;
+            token.CreationDate = date?.UtcDateTime;
 
             return default;
         }
@@ -797,7 +827,7 @@ namespace OpenIddict.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(token));
             }
 
-            token.ExpirationDate = date;
+            token.ExpirationDate = date?.UtcDateTime;
 
             return default;
         }
@@ -850,6 +880,19 @@ namespace OpenIddict.EntityFrameworkCore
             writer.Flush();
 
             token.Properties = Encoding.UTF8.GetString(stream.ToArray());
+
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public virtual ValueTask SetRedemptionDateAsync(TToken token, DateTimeOffset? date, CancellationToken cancellationToken)
+        {
+            if (token is null)
+            {
+                throw new ArgumentNullException(nameof(token));
+            }
+
+            token.RedemptionDate = date?.UtcDateTime;
 
             return default;
         }

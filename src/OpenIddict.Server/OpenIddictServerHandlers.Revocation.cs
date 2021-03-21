@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
@@ -313,7 +314,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2029, Parameters.Token]);
+                            description: SR.FormatID2029(Parameters.Token),
+                            uri: SR.FormatID8000(SR.ID2029));
 
                         return default;
                     }
@@ -352,7 +354,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2029, Parameters.ClientId]);
+                            description: SR.FormatID2029(Parameters.ClientId),
+                            uri: SR.FormatID8000(SR.ID2029));
 
                         return default;
                     }
@@ -405,7 +408,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2052, Parameters.ClientId]);
+                            description: SR.FormatID2052(Parameters.ClientId),
+                            uri: SR.FormatID8000(SR.ID2052));
 
                         return;
                     }
@@ -463,7 +467,8 @@ namespace OpenIddict.Server
 
                             context.Reject(
                                 error: Errors.InvalidClient,
-                                description: context.Localizer[SR.ID2053, Parameters.ClientSecret]);
+                                description: SR.FormatID2053(Parameters.ClientSecret),
+                                uri: SR.FormatID8000(SR.ID2053));
 
                             return;
                         }
@@ -478,7 +483,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2054, Parameters.ClientSecret]);
+                            description: SR.FormatID2054(Parameters.ClientSecret),
+                            uri: SR.FormatID8000(SR.ID2054));
 
                         return;
                     }
@@ -540,7 +546,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidClient,
-                            description: context.Localizer[SR.ID2055]);
+                            description: SR.GetResourceString(SR.ID2055),
+                            uri: SR.FormatID8000(SR.ID2055));
 
                         return;
                     }
@@ -597,7 +604,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.UnauthorizedClient,
-                            description: context.Localizer[SR.ID2078]);
+                            description: SR.GetResourceString(SR.ID2078),
+                            uri: SR.FormatID8000(SR.ID2078));
 
                         return;
                     }
@@ -684,7 +692,7 @@ namespace OpenIddict.Server
                         throw new ArgumentNullException(nameof(context));
                     }
 
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     if (!context.Principal.HasTokenType(TokenTypeHints.AccessToken) &&
                         !context.Principal.HasTokenType(TokenTypeHints.RefreshToken))
@@ -693,7 +701,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.UnsupportedTokenType,
-                            description: context.Localizer[SR.ID2079]);
+                            description: SR.GetResourceString(SR.ID2079),
+                            uri: SR.FormatID8000(SR.ID2079));
 
                         return default;
                     }
@@ -731,21 +740,22 @@ namespace OpenIddict.Server
                     }
 
                     Debug.Assert(!string.IsNullOrEmpty(context.ClientId), SR.FormatID4000(Parameters.ClientId));
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     // When the revoked token is an access token, the caller must be listed either as a presenter
                     // (i.e the party the token was issued to) or as an audience (i.e a resource server/API).
                     // If the access token doesn't contain any explicit presenter/audience, the token is assumed
                     // to be not specific to any resource server/client application and the check is bypassed.
                     if (context.Principal.HasTokenType(TokenTypeHints.AccessToken) &&
-                        context.Principal.HasAudience() && !context.Principal.HasAudience(context.ClientId) &&
-                        context.Principal.HasPresenter() && !context.Principal.HasPresenter(context.ClientId))
+                        context.Principal.HasClaim(Claims.Private.Audience) && !context.Principal.HasAudience(context.ClientId) &&
+                        context.Principal.HasClaim(Claims.Private.Presenter) && !context.Principal.HasPresenter(context.ClientId))
                     {
                         context.Logger.LogError(SR.GetResourceString(SR.ID6119));
 
                         context.Reject(
                             error: Errors.InvalidToken,
-                            description: context.Localizer[SR.ID2080]);
+                            description: SR.GetResourceString(SR.ID2080),
+                            uri: SR.FormatID8000(SR.ID2080));
 
                         return default;
                     }
@@ -755,13 +765,14 @@ namespace OpenIddict.Server
                     // If the refresh token doesn't contain any explicit presenter, the token is
                     // assumed to be not specific to any client application and the check is bypassed.
                     if (context.Principal.HasTokenType(TokenTypeHints.RefreshToken) &&
-                        context.Principal.HasPresenter() && !context.Principal.HasPresenter(context.ClientId))
+                        context.Principal.HasClaim(Claims.Private.Presenter) && !context.Principal.HasPresenter(context.ClientId))
                     {
                         context.Logger.LogError(SR.GetResourceString(SR.ID6121));
 
                         context.Reject(
                             error: Errors.InvalidToken,
-                            description: context.Localizer[SR.ID2080]);
+                            description: SR.GetResourceString(SR.ID2080),
+                            uri: SR.FormatID8000(SR.ID2080));
 
                         return default;
                     }
@@ -836,7 +847,7 @@ namespace OpenIddict.Server
                         throw new ArgumentNullException(nameof(context));
                     }
 
-                    Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                    Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                     // Extract the token identifier from the authentication principal.
                     var identifier = context.Principal.GetTokenId();
@@ -846,7 +857,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.UnsupportedTokenType,
-                            description: context.Localizer[SR.ID2079]);
+                            description: SR.GetResourceString(SR.ID2079),
+                            uri: SR.FormatID8000(SR.ID2079));
 
                         return;
                     }
@@ -858,7 +870,8 @@ namespace OpenIddict.Server
 
                         context.Reject(
                             error: Errors.InvalidToken,
-                            description: context.Localizer[SR.ID2004]);
+                            description: SR.GetResourceString(SR.ID2004),
+                            uri: SR.FormatID8000(SR.ID2004));
 
                         return;
                     }
@@ -868,7 +881,8 @@ namespace OpenIddict.Server
                     {
                         context.Reject(
                             error: Errors.UnsupportedTokenType,
-                            description: context.Localizer[SR.ID2079]);
+                            description: SR.GetResourceString(SR.ID2079),
+                            uri: SR.FormatID8000(SR.ID2079));
 
                         return;
                     }

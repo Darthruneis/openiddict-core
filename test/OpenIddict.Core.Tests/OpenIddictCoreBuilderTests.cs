@@ -6,7 +6,6 @@
 
 using System;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -22,7 +21,7 @@ namespace OpenIddict.Core.Tests
         public void Constructor_ThrowsAnExceptionForNullServices()
         {
             // Arrange
-            var services = (IServiceCollection) null;
+            var services = (IServiceCollection) null!;
 
             // Act and assert
             var exception = Assert.Throws<ArgumentNullException>(() => new OpenIddictCoreBuilder(services));
@@ -437,7 +436,7 @@ namespace OpenIddict.Core.Tests
             // Act and assert
             var exception = Assert.Throws<ArgumentNullException>(delegate
             {
-                return builder.SetDefaultApplicationEntity(type: null);
+                return builder.SetDefaultApplicationEntity(type: null!);
             });
 
             Assert.Equal("type", exception.ParamName);
@@ -487,7 +486,7 @@ namespace OpenIddict.Core.Tests
             // Act and assert
             var exception = Assert.Throws<ArgumentNullException>(delegate
             {
-                return builder.SetDefaultAuthorizationEntity(type: null);
+                return builder.SetDefaultAuthorizationEntity(type: null!);
             });
 
             Assert.Equal("type", exception.ParamName);
@@ -537,7 +536,7 @@ namespace OpenIddict.Core.Tests
             // Act and assert
             var exception = Assert.Throws<ArgumentNullException>(delegate
             {
-                return builder.SetDefaultScopeEntity(type: null);
+                return builder.SetDefaultScopeEntity(type: null!);
             });
 
             Assert.Equal("type", exception.ParamName);
@@ -587,7 +586,7 @@ namespace OpenIddict.Core.Tests
             // Act and assert
             var exception = Assert.Throws<ArgumentNullException>(delegate
             {
-                return builder.SetDefaultTokenEntity(type: null);
+                return builder.SetDefaultTokenEntity(type: null!);
             });
 
             Assert.Equal("type", exception.ParamName);
@@ -681,11 +680,10 @@ namespace OpenIddict.Core.Tests
         {
             public ClosedGenericApplicationManager(
                 IOpenIddictApplicationCache<CustomApplication> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictApplicationManager<CustomApplication>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictApplicationStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -695,11 +693,10 @@ namespace OpenIddict.Core.Tests
         {
             public OpenGenericApplicationManager(
                 IOpenIddictApplicationCache<TApplication> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictApplicationManager<TApplication>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictApplicationStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -708,11 +705,10 @@ namespace OpenIddict.Core.Tests
         {
             public ClosedGenericAuthorizationManager(
                 IOpenIddictAuthorizationCache<CustomAuthorization> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictAuthorizationManager<CustomAuthorization>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictAuthorizationStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -722,11 +718,10 @@ namespace OpenIddict.Core.Tests
         {
             public OpenGenericAuthorizationManager(
                 IOpenIddictAuthorizationCache<TAuthorization> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictAuthorizationManager<TAuthorization>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictAuthorizationStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -735,11 +730,10 @@ namespace OpenIddict.Core.Tests
         {
             public ClosedGenericScopeManager(
                 IOpenIddictScopeCache<CustomScope> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictScopeManager<CustomScope>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictScopeStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -749,11 +743,10 @@ namespace OpenIddict.Core.Tests
         {
             public OpenGenericScopeManager(
                 IOpenIddictScopeCache<TScope> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictScopeManager<TScope>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictScopeStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -762,11 +755,10 @@ namespace OpenIddict.Core.Tests
         {
             public ClosedGenericTokenManager(
                 IOpenIddictTokenCache<CustomToken> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictTokenManager<CustomToken>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictTokenStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }
@@ -776,11 +768,10 @@ namespace OpenIddict.Core.Tests
         {
             public OpenGenericTokenManager(
                 IOpenIddictTokenCache<TToken> cache,
-                IStringLocalizer<OpenIddictResources> localizer,
                 ILogger<OpenIddictTokenManager<TToken>> logger,
                 IOptionsMonitor<OpenIddictCoreOptions> options,
                 IOpenIddictTokenStoreResolver resolver)
-                : base(cache, localizer, logger, options, resolver)
+                : base(cache, logger, options, resolver)
             {
             }
         }

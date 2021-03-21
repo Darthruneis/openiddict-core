@@ -43,6 +43,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2084), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2084), response.ErrorUri);
         }
 
         [Theory]
@@ -108,7 +109,7 @@ namespace OpenIddict.Server.IntegrationTests
             var response = await client.PostAsync("/connect/token", new OpenIddictRequest());
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -134,7 +135,7 @@ namespace OpenIddict.Server.IntegrationTests
             var response = await client.PostAsync("/connect/token", new OpenIddictRequest());
 
             // Assert
-            Assert.Equal("Bob le Magnifique", (string) response["name"]);
+            Assert.Equal("Bob le Magnifique", (string?) response["name"]);
         }
 
         [Fact]
@@ -153,6 +154,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.GrantType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -173,6 +175,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidClient, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.ClientId), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -193,6 +196,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.Code), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -212,6 +216,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.RefreshToken), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Theory]
@@ -235,6 +240,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2057(Parameters.ClientId, Parameters.ClientSecret), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2057), response.ErrorUri);
         }
 
         [Theory]
@@ -258,6 +264,87 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2059(Parameters.Username, Parameters.Password), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2059), response.ErrorUri);
+        }
+
+        [Fact]
+        public async Task ValidateTokenRequest_AuthorizationCodeRequestIsRejectedWhenPkceIsRequiredAndCodeVerifierIsMissing()
+        {
+            // Arrange
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.EnableDegradedMode();
+                options.RequireProofKeyForCodeExchange();
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                Code = "SplxlOBeZQQYbYS6WxSbIA",
+                CodeVerifier = null,
+                GrantType = GrantTypes.AuthorizationCode,
+                RedirectUri = "http://www.fabrikam.com/path"
+            });
+
+            // Assert
+            Assert.Equal(Errors.InvalidRequest, response.Error);
+            Assert.Equal(SR.FormatID2029(Parameters.CodeVerifier), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
+        }
+
+        [Fact]
+        public async Task ValidateTokenRequest_AuthorizationCodeRequestIsValidatedWhenPkceIsNotRequiredAndCodeVerifierIsMissing()
+        {
+            // Arrange
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.EnableDegradedMode();
+
+                options.AddEventHandler<ProcessAuthenticationContext>(builder =>
+                {
+                    builder.UseInlineHandler(context =>
+                    {
+                        Assert.Equal("SplxlOBeZQQYbYS6WxSbIA", context.Token);
+                        Assert.Equal(TokenTypeHints.AuthorizationCode, context.TokenType);
+
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetTokenType(TokenTypeHints.AuthorizationCode)
+                            .SetPresenters("Fabrikam")
+                            .SetClaim(Claims.Subject, "Bob le Bricoleur");
+
+                        return default;
+                    });
+
+                    builder.SetOrder(ValidateIdentityModelToken.Descriptor.Order - 500);
+                });
+
+                options.AddEventHandler<HandleTokenRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+            {
+                ClientId = "Fabrikam",
+                Code = "SplxlOBeZQQYbYS6WxSbIA",
+                CodeVerifier = null,
+                GrantType = GrantTypes.AuthorizationCode,
+                RedirectUri = "http://www.fabrikam.com/path"
+            });
+
+            // Assert
+            Assert.NotNull(response.AccessToken);
         }
 
         [Fact]
@@ -278,6 +365,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2001), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2001), response.ErrorUri);
         }
 
         [Fact]
@@ -297,6 +385,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2003), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2003), response.ErrorUri);
         }
 
         [Fact]
@@ -339,6 +428,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2016), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2016), response.ErrorUri);
         }
 
         [Fact]
@@ -380,6 +470,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2018), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2018), response.ErrorUri);
         }
 
         [Fact]
@@ -465,6 +556,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2069), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2069), response.ErrorUri);
         }
 
         [Fact]
@@ -507,6 +599,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2071), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2071), response.ErrorUri);
         }
 
         [Fact]
@@ -551,6 +644,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.RedirectUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -595,6 +689,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.FormatID2072(Parameters.RedirectUri), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2072), response.ErrorUri);
         }
 
         [Fact]
@@ -638,6 +733,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2073(Parameters.CodeVerifier, Parameters.CodeChallenge), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2073), response.ErrorUri);
         }
 
         [Fact]
@@ -683,6 +779,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.CodeVerifier), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -822,6 +919,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.CodeVerifier), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
         }
 
         [Theory]
@@ -922,6 +1020,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.FormatID2074(Parameters.Scope), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2074), response.ErrorUri);
         }
 
         [Fact]
@@ -967,6 +1066,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.Scope), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
         }
 
         [Fact]
@@ -1010,6 +1110,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.FormatID2074(Parameters.Scope), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2074), response.ErrorUri);
         }
 
         [Fact]
@@ -1053,6 +1154,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.Scope), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
         }
 
         [Theory]
@@ -1068,6 +1170,7 @@ namespace OpenIddict.Server.IntegrationTests
                 options.EnableDegradedMode();
 
                 options.Configure(options => options.GrantTypes.Remove(flow));
+                options.Configure(options => options.ResponseTypes.Clear());
             });
 
             await using var client = await server.CreateClientAsync();
@@ -1085,6 +1188,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnsupportedGrantType, response.Error);
             Assert.Equal(SR.FormatID2032(Parameters.GrantType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2032), response.ErrorUri);
         }
 
         [Fact]
@@ -1112,6 +1216,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2035(Scopes.OfflineAccess), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2035), response.ErrorUri);
         }
 
         [Fact]
@@ -1143,6 +1248,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidScope, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.Scope), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
         }
 
         [Fact]
@@ -1256,6 +1362,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2057(Parameters.ClientId, Parameters.ClientSecret), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2057), response.ErrorUri);
         }
 
         [Fact]
@@ -1282,6 +1389,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidClient, response.Error);
             Assert.Equal(SR.FormatID2029(Parameters.ClientId), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2029), response.ErrorUri);
         }
 
         [Fact]
@@ -1313,6 +1421,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidClient, response.Error);
             Assert.Equal(SR.FormatID2052(Parameters.ClientId), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2052), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
         }
@@ -1350,6 +1459,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnauthorizedClient, response.Error);
             Assert.Equal(SR.FormatID2043(Parameters.GrantType), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2043), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasClientTypeAsync(application, ClientTypes.Public, It.IsAny<CancellationToken>()), Times.Once());
@@ -1390,6 +1500,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidClient, response.Error);
             Assert.Equal(SR.FormatID2053(Parameters.ClientSecret), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2053), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasClientTypeAsync(application, ClientTypes.Public, It.IsAny<CancellationToken>()), Times.Once());
@@ -1430,6 +1541,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidClient, response.Error);
             Assert.Equal(SR.FormatID2054(Parameters.ClientSecret), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2054), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasClientTypeAsync(application, ClientTypes.Public, It.IsAny<CancellationToken>()), Times.Once());
@@ -1473,6 +1585,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidClient, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2055), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2055), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasClientTypeAsync(application, ClientTypes.Public, It.IsAny<CancellationToken>()), Times.AtLeastOnce());
@@ -1519,6 +1632,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnauthorizedClient, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2063), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2063), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
@@ -1565,6 +1679,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.UnauthorizedClient, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2064), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2064), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByClientIdAsync("Fabrikam", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
@@ -1616,6 +1731,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2065(Scopes.OfflineAccess), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2065), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
                 Permissions.GrantTypes.RefreshToken, It.IsAny<CancellationToken>()), Times.Once());
@@ -1667,6 +1783,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2051), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2051), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.HasPermissionAsync(application,
                 Permissions.Prefixes.Scope + Scopes.OpenId, It.IsAny<CancellationToken>()), Times.Never());
@@ -1717,6 +1834,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidRequest, response.Error);
             Assert.Equal(SR.FormatID2054(Parameters.CodeVerifier), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2054), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.HasRequirementAsync(application,
                 Requirements.Features.ProofKeyForCodeExchange, It.IsAny<CancellationToken>()), Times.Once());
@@ -1929,7 +2047,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -1960,7 +2078,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Magnifique", (string) response["name"]);
+            Assert.Equal("Bob le Magnifique", (string?) response["name"]);
         }
 
         [Fact]
@@ -2146,6 +2264,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2001), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2001), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("3E228451-1555-46F7-A471-951EFBA23A56", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
         }
@@ -2205,6 +2324,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2003), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2003), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
         }
@@ -2285,13 +2405,15 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2010), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2010), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("3E228451-1555-46F7-A471-951EFBA23A56", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()), Times.Never());
         }
 
         [Fact]
-        public async Task HandleTokenRequest_RequestIsRejectedWhenRefreshTokenIsAlreadyRedeemed()
+        public async Task HandleTokenRequest_RequestIsRejectedWhenRefreshTokenIsAlreadyRedeemedAndLeewayIsNull()
         {
             // Arrange
             var token = new OpenIddictToken();
@@ -2306,10 +2428,15 @@ namespace OpenIddict.Server.IntegrationTests
 
                 mock.Setup(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()))
                     .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(DateTimeOffset.UtcNow);
             });
 
             await using var server = await CreateServerAsync(options =>
             {
+                options.SetRefreshTokenReuseLeeway(leeway: null);
+
                 options.AddEventHandler<ProcessAuthenticationContext>(builder =>
                 {
                     builder.UseInlineHandler(context =>
@@ -2352,9 +2479,160 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2012), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2012), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()), Times.Never());
+        }
+
+        [Fact]
+        public async Task HandleTokenRequest_RequestIsRejectedWhenRefreshTokenIsAlreadyRedeemedAndCannotBeReused()
+        {
+            // Arrange
+            var token = new OpenIddictToken();
+
+            var manager = CreateTokenManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(token);
+
+                mock.Setup(manager => manager.GetIdAsync(token, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("60FFF7EA-F98E-437B-937E-5073CC313103");
+
+                mock.Setup(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+            });
+
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.SetRefreshTokenReuseLeeway(TimeSpan.FromSeconds(5));
+
+                options.AddEventHandler<ProcessAuthenticationContext>(builder =>
+                {
+                    builder.UseInlineHandler(context =>
+                    {
+                        Assert.Equal("8xLOxBtZp8", context.Token);
+                        Assert.Equal(TokenTypeHints.RefreshToken, context.TokenType);
+
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetTokenType(TokenTypeHints.RefreshToken)
+                            .SetTokenId("60FFF7EA-F98E-437B-937E-5073CC313103")
+                            .SetClaim(Claims.Subject, "Bob le Bricoleur");
+
+                        return default;
+                    });
+
+                    builder.SetOrder(ValidateIdentityModelToken.Descriptor.Order - 500);
+                });
+
+                options.AddEventHandler<HandleTokenRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+
+                options.Services.AddSingleton(manager);
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+            {
+                GrantType = GrantTypes.RefreshToken,
+                RefreshToken = "8xLOxBtZp8"
+            });
+
+            // Assert
+            Assert.Equal(Errors.InvalidGrant, response.Error);
+            Assert.Equal(SR.GetResourceString(SR.ID2012), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2012), response.ErrorUri);
+
+            Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
+            Mock.Get(manager).Verify(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task HandleTokenRequest_RequestIsValidatedWhenRefreshTokenIsAlreadyRedeemedAndCanBeReused()
+        {
+            // Arrange
+            var token = new OpenIddictToken();
+
+            var manager = CreateTokenManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(token);
+
+                mock.Setup(manager => manager.GetIdAsync(token, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("60FFF7EA-F98E-437B-937E-5073CC313103");
+
+                mock.Setup(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+
+                mock.Setup(manager => manager.CreateAsync(It.IsAny<OpenIddictTokenDescriptor>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new OpenIddictToken());
+            });
+
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.SetRefreshTokenReuseLeeway(TimeSpan.FromMinutes(5));
+
+                options.AddEventHandler<ProcessAuthenticationContext>(builder =>
+                {
+                    builder.UseInlineHandler(context =>
+                    {
+                        Assert.Equal("8xLOxBtZp8", context.Token);
+                        Assert.Equal(TokenTypeHints.RefreshToken, context.TokenType);
+
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetTokenType(TokenTypeHints.RefreshToken)
+                            .SetTokenId("60FFF7EA-F98E-437B-937E-5073CC313103")
+                            .SetClaim(Claims.Subject, "Bob le Bricoleur");
+
+                        return default;
+                    });
+
+                    builder.SetOrder(ValidateIdentityModelToken.Descriptor.Order - 500);
+                });
+
+                options.AddEventHandler<HandleTokenRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+
+                options.Services.AddSingleton(manager);
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+            {
+                GrantType = GrantTypes.RefreshToken,
+                RefreshToken = "8xLOxBtZp8"
+            });
+
+            // Assert
+            Assert.NotNull(response.AccessToken);
+
+            Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
+            Mock.Get(manager).Verify(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.GetRedemptionDateAsync(token, It.IsAny<CancellationToken>()), Times.Once());
         }
 
         [Fact]
@@ -2449,6 +2727,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2010), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2010), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("3E228451-1555-46F7-A471-951EFBA23A56", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
@@ -2458,7 +2737,7 @@ namespace OpenIddict.Server.IntegrationTests
         }
 
         [Fact]
-        public async Task HandleTokenRequest_RevokesTokensWhenRefreshTokenIsAlreadyRedeemed()
+        public async Task HandleTokenRequest_RevokesTokensWhenRefreshTokenIsAlreadyRedeemedAndLeewayIsNull()
         {
             // Arrange
             var tokens = ImmutableArray.Create(
@@ -2486,12 +2765,17 @@ namespace OpenIddict.Server.IntegrationTests
                 mock.Setup(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()))
                     .ReturnsAsync(true);
 
+                mock.Setup(manager => manager.GetRedemptionDateAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(DateTimeOffset.UtcNow);
+
                 mock.Setup(manager => manager.FindByAuthorizationIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()))
                     .Returns(tokens.ToAsyncEnumerable());
             });
 
             await using var server = await CreateServerAsync(options =>
             {
+                options.SetRefreshTokenReuseLeeway(leeway: null);
+
                 options.AddEventHandler<ProcessAuthenticationContext>(builder =>
                 {
                     builder.UseInlineHandler(context =>
@@ -2536,12 +2820,210 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2012), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2012), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
             Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[0], It.IsAny<CancellationToken>()), Times.Once());
             Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[1], It.IsAny<CancellationToken>()), Times.Once());
             Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[2], It.IsAny<CancellationToken>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task HandleTokenRequest_RevokesTokensWhenRefreshTokenIsAlreadyRedeemedAndCannotBeReused()
+        {
+            // Arrange
+            var tokens = ImmutableArray.Create(
+                new OpenIddictToken(),
+                new OpenIddictToken(),
+                new OpenIddictToken());
+
+            var manager = CreateTokenManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(tokens[0]);
+
+                mock.Setup(manager => manager.GetIdAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("60FFF7EA-F98E-437B-937E-5073CC313103");
+
+                mock.Setup(manager => manager.GetIdAsync(tokens[1], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("47468A64-C9A7-49C7-939C-19CC0F5DD166");
+
+                mock.Setup(manager => manager.GetIdAsync(tokens[2], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("3BEA7A94-5ADA-49AF-9F41-8AB6156E31A8");
+
+                mock.Setup(manager => manager.GetAuthorizationIdAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0");
+
+                mock.Setup(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetRedemptionDateAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+
+                mock.Setup(manager => manager.FindByAuthorizationIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()))
+                    .Returns(tokens.ToAsyncEnumerable());
+            });
+
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.SetRefreshTokenReuseLeeway(TimeSpan.FromSeconds(5));
+
+                options.AddEventHandler<ProcessAuthenticationContext>(builder =>
+                {
+                    builder.UseInlineHandler(context =>
+                    {
+                        Assert.Equal("8xLOxBtZp8", context.Token);
+                        Assert.Equal(TokenTypeHints.RefreshToken, context.TokenType);
+
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetTokenType(TokenTypeHints.RefreshToken)
+                            .SetPresenters("Fabrikam")
+                            .SetTokenId("60FFF7EA-F98E-437B-937E-5073CC313103")
+                            .SetAuthorizationId("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0")
+                            .SetClaim(Claims.Subject, "Bob le Bricoleur");
+
+                        return default;
+                    });
+
+                    builder.SetOrder(ValidateIdentityModelToken.Descriptor.Order - 500);
+                });
+
+                options.AddEventHandler<HandleTokenRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+
+                options.Services.AddSingleton(manager);
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+            {
+                GrantType = GrantTypes.RefreshToken,
+                RefreshToken = "8xLOxBtZp8"
+            });
+
+            // Assert
+            Assert.Equal(Errors.InvalidGrant, response.Error);
+            Assert.Equal(SR.GetResourceString(SR.ID2012), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2012), response.ErrorUri);
+
+            Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
+            Mock.Get(manager).Verify(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[0], It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[1], It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[2], It.IsAny<CancellationToken>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task HandleTokenRequest_DoesNotRevokeTokensWhenRefreshTokenIsAlreadyRedeemedAndCanBeReused()
+        {
+            // Arrange
+            var tokens = ImmutableArray.Create(
+                new OpenIddictToken(),
+                new OpenIddictToken(),
+                new OpenIddictToken());
+
+            var manager = CreateTokenManager(mock =>
+            {
+                mock.Setup(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(tokens[0]);
+
+                mock.Setup(manager => manager.GetIdAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("60FFF7EA-F98E-437B-937E-5073CC313103");
+
+                mock.Setup(manager => manager.GetIdAsync(tokens[1], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("47468A64-C9A7-49C7-939C-19CC0F5DD166");
+
+                mock.Setup(manager => manager.GetIdAsync(tokens[2], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("3BEA7A94-5ADA-49AF-9F41-8AB6156E31A8");
+
+                mock.Setup(manager => manager.GetAuthorizationIdAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0");
+
+                mock.Setup(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(true);
+
+                mock.Setup(manager => manager.GetRedemptionDateAsync(tokens[0], It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+
+                mock.Setup(manager => manager.FindByAuthorizationIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()))
+                    .Returns(tokens.ToAsyncEnumerable());
+
+                mock.Setup(manager => manager.CreateAsync(It.IsAny<OpenIddictTokenDescriptor>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new OpenIddictToken());
+            });
+
+            await using var server = await CreateServerAsync(options =>
+            {
+                options.SetRefreshTokenReuseLeeway(TimeSpan.FromMinutes(5));
+
+                options.AddEventHandler<ProcessAuthenticationContext>(builder =>
+                {
+                    builder.UseInlineHandler(context =>
+                    {
+                        Assert.Equal("8xLOxBtZp8", context.Token);
+                        Assert.Equal(TokenTypeHints.RefreshToken, context.TokenType);
+
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetTokenType(TokenTypeHints.RefreshToken)
+                            .SetTokenId("60FFF7EA-F98E-437B-937E-5073CC313103")
+                            .SetAuthorizationId("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0")
+                            .SetClaim(Claims.Subject, "Bob le Bricoleur");
+
+                        return default;
+                    });
+
+                    builder.SetOrder(ValidateIdentityModelToken.Descriptor.Order - 500);
+                });
+
+                options.AddEventHandler<HandleTokenRequestContext>(builder =>
+                    builder.UseInlineHandler(context =>
+                    {
+                        context.Principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"))
+                            .SetClaim(Claims.Subject, "Bob le Magnifique");
+
+                        return default;
+                    }));
+
+                options.Services.AddSingleton(manager);
+
+                options.Services.AddSingleton(CreateAuthorizationManager(mock =>
+                {
+                    var authorization = new OpenIddictAuthorization();
+
+                    mock.Setup(manager => manager.FindByIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(authorization);
+
+                    mock.Setup(manager => manager.HasStatusAsync(authorization, Statuses.Valid, It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(true);
+                }));
+            });
+
+            await using var client = await server.CreateClientAsync();
+
+            // Act
+            var response = await client.PostAsync("/connect/token", new OpenIddictRequest
+            {
+                GrantType = GrantTypes.RefreshToken,
+                RefreshToken = "8xLOxBtZp8"
+            });
+
+            // Assert
+            Assert.NotNull(response.AccessToken);
+
+            Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
+            Mock.Get(manager).Verify(manager => manager.HasStatusAsync(tokens[0], Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
+            Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[0], It.IsAny<CancellationToken>()), Times.Never());
+            Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[1], It.IsAny<CancellationToken>()), Times.Never());
+            Mock.Get(manager).Verify(manager => manager.TryRevokeAsync(tokens[2], It.IsAny<CancellationToken>()), Times.Never());
         }
 
         [Fact]
@@ -2624,6 +3106,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2016), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2016), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("3E228451-1555-46F7-A471-951EFBA23A56", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(token, Statuses.Redeemed, It.IsAny<CancellationToken>()), Times.Once());
@@ -2697,6 +3180,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2018), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2018), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("60FFF7EA-F98E-437B-937E-5073CC313103", It.IsAny<CancellationToken>()), Times.AtLeastOnce());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(token, Statuses.Valid, It.IsAny<CancellationToken>()), Times.Once());
@@ -2816,6 +3300,8 @@ namespace OpenIddict.Server.IntegrationTests
 
             await using var server = await CreateServerAsync(options =>
             {
+                options.DisableRollingRefreshTokens();
+
                 options.AddEventHandler<ProcessAuthenticationContext>(builder =>
                 {
                     builder.UseInlineHandler(context =>
@@ -2976,6 +3462,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2020), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2020), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()), Times.Once());
         }
@@ -3074,6 +3561,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2020), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2020), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()), Times.Once());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(authorization, Statuses.Valid, It.IsAny<CancellationToken>()), Times.Once());
@@ -3154,6 +3642,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2022), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2022), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()), Times.Once());
         }
@@ -3238,6 +3727,7 @@ namespace OpenIddict.Server.IntegrationTests
             // Assert
             Assert.Equal(Errors.InvalidGrant, response.Error);
             Assert.Equal(SR.GetResourceString(SR.ID2022), response.ErrorDescription);
+            Assert.Equal(SR.FormatID8000(SR.ID2022), response.ErrorUri);
 
             Mock.Get(manager).Verify(manager => manager.FindByIdAsync("18D15F73-BE2B-6867-DC01-B3C1E8AFDED0", It.IsAny<CancellationToken>()), Times.Once());
             Mock.Get(manager).Verify(manager => manager.HasStatusAsync(authorization, Statuses.Valid, It.IsAny<CancellationToken>()), Times.Once());
@@ -3277,6 +3767,8 @@ namespace OpenIddict.Server.IntegrationTests
 
             await using var server = await CreateServerAsync(options =>
             {
+                options.DisableRollingRefreshTokens();
+
                 options.AddEventHandler<ProcessAuthenticationContext>(builder =>
                 {
                     builder.UseInlineHandler(context =>
@@ -3419,7 +3911,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -3450,7 +3942,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Magnifique", (string) response["name"]);
+            Assert.Equal("Bob le Magnifique", (string?) response["name"]);
         }
 
         [Fact]
@@ -3495,7 +3987,7 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("Bob le Bricoleur", (string) response["name"]);
+            Assert.Equal("Bob le Bricoleur", (string?) response["name"]);
         }
 
         [Fact]
@@ -3540,8 +4032,8 @@ namespace OpenIddict.Server.IntegrationTests
             });
 
             // Assert
-            Assert.Equal("custom_value", (string) response["custom_parameter"]);
-            Assert.Equal(new[] { "custom_value_1", "custom_value_2" }, (string[]) response["parameter_with_multiple_values"]);
+            Assert.Equal("custom_value", (string?) response["custom_parameter"]);
+            Assert.Equal(new[] { "custom_value_1", "custom_value_2" }, (string[]?) response["parameter_with_multiple_values"]);
         }
     }
 }

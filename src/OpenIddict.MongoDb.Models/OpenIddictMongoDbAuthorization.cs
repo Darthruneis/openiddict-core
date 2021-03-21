@@ -32,7 +32,7 @@ namespace OpenIddict.MongoDb.Models
         public virtual string? ConcurrencyToken { get; set; } = Guid.NewGuid().ToString();
 
         /// <summary>
-        /// Gets or sets the creation date of the current authorization.
+        /// Gets or sets the UTC creation date of the current authorization.
         /// </summary>
         public virtual DateTime? CreationDate { get; set; }
 
@@ -52,7 +52,7 @@ namespace OpenIddict.MongoDb.Models
         /// Gets or sets the scopes associated with the current authorization.
         /// </summary>
         [BsonElement("scopes"), BsonIgnoreIfDefault]
-        public virtual IReadOnlyList<string> Scopes { get; set; } = ImmutableArray.Create<string>();
+        public virtual IReadOnlyList<string> Scopes { get; set; } = ImmutableList.Create<string>();
 
         /// <summary>
         /// Gets or sets the status of the current authorization.

@@ -525,7 +525,7 @@ namespace OpenIddict.Abstractions
             foreach (var element in document.RootElement.EnumerateArray())
             {
                 var value = element.GetString();
-                if (builder.Contains(value, StringComparer.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(value) || builder.Contains(value, StringComparer.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -1061,6 +1061,11 @@ namespace OpenIddict.Abstractions
                 throw new ArgumentNullException(nameof(principal));
             }
 
+            if (principal.Identity is not ClaimsIdentity identity)
+            {
+                throw new ArgumentException(SR.GetResourceString(SR.ID0286), nameof(principal));
+            }
+
             if (string.IsNullOrEmpty(type))
             {
                 throw new ArgumentException(SR.GetResourceString(SR.ID0184), nameof(type));
@@ -1070,7 +1075,7 @@ namespace OpenIddict.Abstractions
 
             if (!string.IsNullOrEmpty(value))
             {
-                ((ClaimsIdentity) principal.Identity).AddClaim(type, value);
+                identity.AddClaim(type, value);
             }
 
             return principal;
@@ -1119,6 +1124,11 @@ namespace OpenIddict.Abstractions
                 throw new ArgumentNullException(nameof(principal));
             }
 
+            if (principal.Identity is not ClaimsIdentity identity)
+            {
+                throw new ArgumentException(SR.GetResourceString(SR.ID0286), nameof(principal));
+            }
+
             if (string.IsNullOrEmpty(type))
             {
                 throw new ArgumentException(SR.GetResourceString(SR.ID0184), nameof(type));
@@ -1128,7 +1138,7 @@ namespace OpenIddict.Abstractions
 
             foreach (var value in values.Distinct(StringComparer.Ordinal))
             {
-                ((ClaimsIdentity) principal.Identity).AddClaim(type, value);
+                identity.AddClaim(type, value);
             }
 
             return principal;
@@ -1291,14 +1301,6 @@ namespace OpenIddict.Abstractions
             => principal.GetClaim(Claims.Private.TokenType);
 
         /// <summary>
-        /// Determines whether the claims principal contains at least one audience.
-        /// </summary>
-        /// <param name="principal">The claims principal.</param>
-        /// <returns><c>true</c> if the principal contains at least one audience.</returns>
-        public static bool HasAudience(this ClaimsPrincipal principal)
-            => principal.HasClaim(Claims.Private.Audience);
-
-        /// <summary>
         /// Determines whether the claims principal contains the given audience.
         /// </summary>
         /// <param name="principal">The claims principal.</param>
@@ -1318,14 +1320,6 @@ namespace OpenIddict.Abstractions
 
             return principal.HasClaim(Claims.Private.Audience, audience);
         }
-
-        /// <summary>
-        /// Determines whether the claims principal contains at least one presenter.
-        /// </summary>
-        /// <param name="principal">The claims principal.</param>
-        /// <returns><c>true</c> if the principal contains at least one presenter.</returns>
-        public static bool HasPresenter(this ClaimsPrincipal principal)
-            => principal.HasClaim(Claims.Private.Presenter);
 
         /// <summary>
         /// Determines whether the claims principal contains the given presenter.
@@ -1349,14 +1343,6 @@ namespace OpenIddict.Abstractions
         }
 
         /// <summary>
-        /// Determines whether the claims principal contains at least one resource.
-        /// </summary>
-        /// <param name="principal">The claims principal.</param>
-        /// <returns><c>true</c> if the principal contains at least one resource.</returns>
-        public static bool HasResource(this ClaimsPrincipal principal)
-            => principal.HasClaim(Claims.Private.Resource);
-
-        /// <summary>
         /// Determines whether the claims principal contains the given resource.
         /// </summary>
         /// <param name="principal">The claims principal.</param>
@@ -1376,14 +1362,6 @@ namespace OpenIddict.Abstractions
 
             return principal.HasClaim(Claims.Private.Resource, resource);
         }
-
-        /// <summary>
-        /// Determines whether the claims principal contains at least one scope.
-        /// </summary>
-        /// <param name="principal">The claims principal.</param>
-        /// <returns><c>true</c> if the principal contains at least one scope.</returns>
-        public static bool HasScope(this ClaimsPrincipal principal)
-            => principal.HasClaim(Claims.Private.Scope);
 
         /// <summary>
         /// Determines whether the claims principal contains the given scope.

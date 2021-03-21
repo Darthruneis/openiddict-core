@@ -85,7 +85,8 @@ namespace OpenIddict.Validation
                 {
                     context.Reject(
                         error: Errors.MissingToken,
-                        description: context.Localizer[SR.ID2000]);
+                        description: SR.GetResourceString(SR.ID2000),
+                        uri: SR.FormatID8000(SR.ID2000));
 
                     return default;
                 }
@@ -146,7 +147,8 @@ namespace OpenIddict.Validation
                 {
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2004]);
+                        description: SR.GetResourceString(SR.ID2004),
+                        uri: SR.FormatID8000(SR.ID2004));
 
                     return;
                 }
@@ -220,7 +222,7 @@ namespace OpenIddict.Validation
                 {
                     // If no specific token type is expected, accept all token types at this stage.
                     // Additional filtering can be made based on the resolved/actual token type.
-                    var type when string.IsNullOrEmpty(type) => null,
+                    null or { Length: 0 } => null,
 
                     // For access tokens, both "at+jwt" and "application/at+jwt" are valid.
                     TokenTypeHints.AccessToken => new[]
@@ -248,12 +250,21 @@ namespace OpenIddict.Validation
                         error: Errors.InvalidToken,
                         description: result.Exception switch
                         {
-                            SecurityTokenInvalidIssuerException        => context.Localizer[SR.ID2088],
-                            SecurityTokenInvalidTypeException          => context.Localizer[SR.ID2089],
-                            SecurityTokenSignatureKeyNotFoundException => context.Localizer[SR.ID2090],
-                            SecurityTokenInvalidSignatureException     => context.Localizer[SR.ID2091],
+                            SecurityTokenInvalidIssuerException        => SR.GetResourceString(SR.ID2088),
+                            SecurityTokenInvalidTypeException          => SR.GetResourceString(SR.ID2089),
+                            SecurityTokenSignatureKeyNotFoundException => SR.GetResourceString(SR.ID2090),
+                            SecurityTokenInvalidSignatureException     => SR.GetResourceString(SR.ID2091),
 
-                            _ => context.Localizer[SR.ID2004]
+                            _ => SR.GetResourceString(SR.ID2004)
+                        },
+                        uri: result.Exception switch
+                        {
+                            SecurityTokenInvalidIssuerException        => SR.FormatID8000(SR.ID2088),
+                            SecurityTokenInvalidTypeException          => SR.FormatID8000(SR.ID2089),
+                            SecurityTokenSignatureKeyNotFoundException => SR.FormatID8000(SR.ID2090),
+                            SecurityTokenInvalidSignatureException     => SR.FormatID8000(SR.ID2091),
+
+                            _ => SR.FormatID8000(SR.ID2004)
                         });
 
                     return;
@@ -265,10 +276,11 @@ namespace OpenIddict.Validation
                 // Store the token type (resolved from "typ" or "token_usage") as a special private claim.
                 context.Principal.SetTokenType(result.TokenType switch
                 {
-                    var type when string.IsNullOrEmpty(type) => throw new InvalidOperationException(SR.GetResourceString(SR.ID0025)),
+                    null or { Length: 0 } => throw new InvalidOperationException(SR.GetResourceString(SR.ID0025)),
 
-                    JsonWebTokenTypes.AccessToken                                          => TokenTypeHints.AccessToken,
-                    JsonWebTokenTypes.Prefixes.Application + JsonWebTokenTypes.AccessToken => TokenTypeHints.AccessToken,
+                    // Both at+jwt and application/at+jwt are supported for access tokens.
+                    JsonWebTokenTypes.AccessToken or JsonWebTokenTypes.Prefixes.Application + JsonWebTokenTypes.AccessToken
+                        => TokenTypeHints.AccessToken,
 
                     _ => throw new InvalidOperationException(SR.GetResourceString(SR.ID0003))
                 });
@@ -323,7 +335,8 @@ namespace OpenIddict.Validation
                 {
                     context.Reject(
                         error: Errors.ServerError,
-                        description: context.Localizer[SR.ID2092]);
+                        description: SR.GetResourceString(SR.ID2092),
+                        uri: SR.FormatID8000(SR.ID2092));
 
                     return;
                 }
@@ -348,7 +361,8 @@ namespace OpenIddict.Validation
 
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2004]);
+                        description: SR.GetResourceString(SR.ID2004),
+                        uri: SR.FormatID8000(SR.ID2004));
 
                     return;
                 }
@@ -459,7 +473,7 @@ namespace OpenIddict.Validation
 
                 // In OpenIddict 3.0, the audiences allowed to receive a token are stored in "oi_aud".
                 // If no such claim exists, try to infer them from the standard "aud" JWT claims.
-                if (!context.Principal.HasAudience())
+                if (!context.Principal.HasClaim(Claims.Private.Audience))
                 {
                     var audiences = context.Principal.GetClaims(Claims.Audience);
                     if (audiences.Any())
@@ -476,7 +490,7 @@ namespace OpenIddict.Validation
                 // specified. To ensure presenters stored in JWT tokens created by OpenIddict 1.x/2.x
                 // can still be read with OpenIddict 3.0, the presenter is automatically inferred from
                 // the "azp" or "client_id" claim if no "oi_prst" claim was found in the principal.
-                if (!context.Principal.HasPresenter())
+                if (!context.Principal.HasClaim(Claims.Private.Presenter))
                 {
                     var presenter = context.Principal.GetClaim(Claims.AuthorizedParty) ??
                                     context.Principal.GetClaim(Claims.ClientId);
@@ -490,7 +504,7 @@ namespace OpenIddict.Validation
                 // In OpenIddict 3.0, the scopes granted to an application are stored in "oi_scp".
                 // If no such claim exists, try to infer them from the standard "scope" JWT claim,
                 // which is guaranteed to be a unique space-separated claim containing all the values.
-                if (!context.Principal.HasScope())
+                if (!context.Principal.HasClaim(Claims.Private.Scope))
                 {
                     var scope = context.Principal.GetClaim(Claims.Scope);
                     if (!string.IsNullOrEmpty(scope))
@@ -590,7 +604,8 @@ namespace OpenIddict.Validation
                 {
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2004]);
+                        description: SR.GetResourceString(SR.ID2004),
+                        uri: SR.FormatID8000(SR.ID2004));
 
                     return default;
                 }
@@ -640,7 +655,7 @@ namespace OpenIddict.Validation
                     throw new ArgumentNullException(nameof(context));
                 }
 
-                Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                 var date = context.Principal.GetExpirationDate();
                 if (date.HasValue && date.Value < DateTimeOffset.UtcNow)
@@ -649,7 +664,8 @@ namespace OpenIddict.Validation
 
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2019]);
+                        description: SR.GetResourceString(SR.ID2019),
+                        uri: SR.FormatID8000(SR.ID2019));
 
                     return default;
                 }
@@ -682,7 +698,7 @@ namespace OpenIddict.Validation
                     throw new ArgumentNullException(nameof(context));
                 }
 
-                Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                 // If no explicit audience has been configured,
                 // skip the default audience validation.
@@ -699,7 +715,8 @@ namespace OpenIddict.Validation
 
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2093]);
+                        description: SR.GetResourceString(SR.ID2093),
+                        uri: SR.FormatID8000(SR.ID2093));
 
                     return default;
                 }
@@ -711,7 +728,8 @@ namespace OpenIddict.Validation
 
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2094]);
+                        description: SR.GetResourceString(SR.ID2094),
+                        uri: SR.FormatID8000(SR.ID2094));
 
                     return default;
                 }
@@ -754,7 +772,7 @@ namespace OpenIddict.Validation
                     throw new ArgumentNullException(nameof(context));
                 }
 
-                Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                 var identifier = context.Principal.GetTokenId();
                 if (string.IsNullOrEmpty(identifier))
@@ -769,7 +787,8 @@ namespace OpenIddict.Validation
 
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2019]);
+                        description: SR.GetResourceString(SR.ID2019),
+                        uri: SR.FormatID8000(SR.ID2019));
 
                     return;
                 }
@@ -817,7 +836,7 @@ namespace OpenIddict.Validation
                     throw new ArgumentNullException(nameof(context));
                 }
 
-                Debug.Assert(context.Principal is not null, SR.GetResourceString(SR.ID4006));
+                Debug.Assert(context.Principal is { Identity: ClaimsIdentity }, SR.GetResourceString(SR.ID4006));
 
                 var identifier = context.Principal.GetAuthorizationId();
                 if (string.IsNullOrEmpty(identifier))
@@ -832,7 +851,8 @@ namespace OpenIddict.Validation
 
                     context.Reject(
                         error: Errors.InvalidToken,
-                        description: context.Localizer[SR.ID2023]);
+                        description: SR.GetResourceString(SR.ID2023),
+                        uri: SR.FormatID8000(SR.ID2023));
 
                     return;
                 }
@@ -890,7 +910,8 @@ namespace OpenIddict.Validation
                 else
                 {
                     context.Response.Error = Errors.InsufficientAccess;
-                    context.Response.ErrorDescription = context.Localizer[SR.ID2095];
+                    context.Response.ErrorDescription = SR.GetResourceString(SR.ID2095);
+                    context.Response.ErrorUri = SR.FormatID8000(SR.ID2095);
                 }
 
                 return default;

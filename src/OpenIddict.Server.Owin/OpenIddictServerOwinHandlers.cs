@@ -23,6 +23,7 @@ using Owin;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 using static OpenIddict.Server.OpenIddictServerEvents;
 using static OpenIddict.Server.OpenIddictServerHandlers;
+using static OpenIddict.Server.Owin.OpenIddictServerOwinConstants;
 using static OpenIddict.Server.Owin.OpenIddictServerOwinHandlerFilters;
 using Properties = OpenIddict.Server.Owin.OpenIddictServerOwinConstants.Properties;
 using SR = OpenIddict.Abstractions.OpenIddictResources;
@@ -201,7 +202,8 @@ namespace OpenIddict.Server.Owin
                 {
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2081, "Host"]);
+                        description: SR.FormatID2081(Headers.Host),
+                        uri: SR.FormatID8000(SR.ID2081));
 
                     return default;
                 }
@@ -211,7 +213,8 @@ namespace OpenIddict.Server.Owin
                 {
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2082, "Host"]);
+                        description: SR.FormatID2082(Headers.Host),
+                        uri: SR.FormatID8000(SR.ID2082));
 
                     return default;
                 }
@@ -267,7 +270,8 @@ namespace OpenIddict.Server.Owin
                 {
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2083]);
+                        description: SR.GetResourceString(SR.ID2083),
+                        uri: SR.FormatID8000(SR.ID2083));
 
                     return default;
                 }
@@ -361,7 +365,8 @@ namespace OpenIddict.Server.Owin
 
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2084]);
+                        description: SR.GetResourceString(SR.ID2084),
+                        uri: SR.FormatID8000(SR.ID2084));
 
                     return default;
                 }
@@ -413,11 +418,12 @@ namespace OpenIddict.Server.Owin
                     // See http://openid.net/specs/openid-connect-core-1_0.html#FormSerialization
                     if (string.IsNullOrEmpty(request.ContentType))
                     {
-                        context.Logger.LogError(SR.GetResourceString(SR.ID6138), "Content-Type");
+                        context.Logger.LogError(SR.GetResourceString(SR.ID6138), Headers.ContentType);
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2081, "Content-Type"]);
+                            description: SR.FormatID2081(Headers.ContentType),
+                            uri: SR.FormatID8000(SR.ID2081));
 
                         return;
                     }
@@ -425,11 +431,12 @@ namespace OpenIddict.Server.Owin
                     // May have media/type; charset=utf-8, allow partial match.
                     if (!request.ContentType.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
                     {
-                        context.Logger.LogError(SR.GetResourceString(SR.ID6139), "Content-Type", request.ContentType);
+                        context.Logger.LogError(SR.GetResourceString(SR.ID6139), Headers.ContentType, request.ContentType);
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2082, "Content-Type"]);
+                            description: SR.FormatID2082(Headers.ContentType),
+                            uri: SR.FormatID8000(SR.ID2082));
 
                         return;
                     }
@@ -443,7 +450,8 @@ namespace OpenIddict.Server.Owin
 
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2084]);
+                        description: SR.GetResourceString(SR.ID2084),
+                        uri: SR.FormatID8000(SR.ID2084));
 
                     return;
                 }
@@ -488,11 +496,12 @@ namespace OpenIddict.Server.Owin
                     // See http://openid.net/specs/openid-connect-core-1_0.html#FormSerialization
                     if (string.IsNullOrEmpty(request.ContentType))
                     {
-                        context.Logger.LogError(SR.GetResourceString(SR.ID6138), "Content-Type");
+                        context.Logger.LogError(SR.GetResourceString(SR.ID6138), Headers.ContentType);
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2081, "Content-Type"]);
+                            description: SR.FormatID2081(Headers.ContentType),
+                            uri: SR.FormatID8000(SR.ID2081));
 
                         return;
                     }
@@ -500,11 +509,12 @@ namespace OpenIddict.Server.Owin
                     // May have media/type; charset=utf-8, allow partial match.
                     if (!request.ContentType.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
                     {
-                        context.Logger.LogError(SR.GetResourceString(SR.ID6139), "Content-Type", request.ContentType);
+                        context.Logger.LogError(SR.GetResourceString(SR.ID6139), Headers.ContentType, request.ContentType);
 
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2082, "Content-Type"]);
+                            description: SR.FormatID2082(Headers.ContentType),
+                            uri: SR.FormatID8000(SR.ID2082));
 
                         return;
                     }
@@ -518,7 +528,8 @@ namespace OpenIddict.Server.Owin
 
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2084]);
+                        description: SR.GetResourceString(SR.ID2084),
+                        uri: SR.FormatID8000(SR.ID2084));
 
                     return;
                 }
@@ -561,7 +572,7 @@ namespace OpenIddict.Server.Owin
                     throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
                 }
 
-                var header = request.Headers["Authorization"];
+                var header = request.Headers[Headers.Authorization];
                 if (string.IsNullOrEmpty(header) || !header.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
                 {
                     return default;
@@ -576,7 +587,8 @@ namespace OpenIddict.Server.Owin
 
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2087]);
+                        description: SR.GetResourceString(SR.ID2087),
+                        uri: SR.FormatID8000(SR.ID2087));
 
                     return default;
                 }
@@ -591,7 +603,8 @@ namespace OpenIddict.Server.Owin
                     {
                         context.Reject(
                             error: Errors.InvalidRequest,
-                            description: context.Localizer[SR.ID2055]);
+                            description: SR.GetResourceString(SR.ID2055),
+                            uri: SR.FormatID8000(SR.ID2055));
 
                         return default;
                     }
@@ -607,7 +620,8 @@ namespace OpenIddict.Server.Owin
                 {
                     context.Reject(
                         error: Errors.InvalidRequest,
-                        description: context.Localizer[SR.ID2055]);
+                        description: SR.GetResourceString(SR.ID2055),
+                        uri: SR.FormatID8000(SR.ID2055));
 
                     return default;
                 }
@@ -660,7 +674,7 @@ namespace OpenIddict.Server.Owin
                     throw new InvalidOperationException(SR.GetResourceString(SR.ID0120));
                 }
 
-                var header = request.Headers["Authorization"];
+                var header = request.Headers[Headers.Authorization];
                 if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 {
                     return default;
@@ -753,12 +767,9 @@ namespace OpenIddict.Server.Owin
                 {
                     null => 200, // Note: the default code may be replaced by another handler (e.g when doing redirects).
 
-                    Errors.InvalidClient => 401,
-                    Errors.InvalidToken  => 401,
-                    Errors.MissingToken  => 401,
+                    Errors.InvalidClient or Errors.InvalidToken or Errors.MissingToken => 401,
 
-                    Errors.InsufficientAccess => 403,
-                    Errors.InsufficientScope  => 403,
+                    Errors.InsufficientAccess or Errors.InsufficientScope => 403,
 
                     _ => 400
                 };
@@ -801,9 +812,9 @@ namespace OpenIddict.Server.Owin
                 }
 
                 // Prevent the response from being cached.
-                response.Headers["Cache-Control"] = "no-store";
-                response.Headers["Pragma"] = "no-cache";
-                response.Headers["Expires"] = "Thu, 01 Jan 1970 00:00:00 GMT";
+                response.Headers[Headers.CacheControl] = "no-store";
+                response.Headers[Headers.Pragma] = "no-cache";
+                response.Headers[Headers.Expires] = "Thu, 01 Jan 1970 00:00:00 GMT";
 
                 return default;
             }
@@ -858,12 +869,12 @@ namespace OpenIddict.Server.Owin
                 // were specified in the request form instead of the HTTP headers, as allowed by the specification.
                 var scheme = context.Transaction.Response.Error switch
                 {
-                    Errors.InvalidClient      => Schemes.Basic,
+                    Errors.InvalidClient => Schemes.Basic,
 
-                    Errors.InvalidToken       => Schemes.Bearer,
-                    Errors.MissingToken       => Schemes.Bearer,
-                    Errors.InsufficientAccess => Schemes.Bearer,
-                    Errors.InsufficientScope  => Schemes.Bearer,
+                    Errors.InvalidToken or
+                    Errors.MissingToken or
+                    Errors.InsufficientAccess or
+                    Errors.InsufficientScope => Schemes.Bearer,
 
                     _ => null
                 };
@@ -922,7 +933,7 @@ namespace OpenIddict.Server.Owin
                     builder.Remove(builder.Length - 1, 1);
                 }
 
-                response.Headers.Append("WWW-Authenticate", builder.ToString());
+                response.Headers.Append(Headers.WwwAuthenticate, builder.ToString());
 
                 return default;
             }
@@ -962,7 +973,7 @@ namespace OpenIddict.Server.Owin
                 }
 
                 // If the response doesn't contain a WWW-Authenticate header, don't return an empty response.
-                if (!response.Headers.ContainsKey("WWW-Authenticate"))
+                if (!response.Headers.ContainsKey(Headers.WwwAuthenticate))
                 {
                     return default;
                 }

@@ -194,7 +194,7 @@ namespace OpenIddict.EntityFrameworkCore
             // ImmutableArray.Contains() (which is not fully supported by Entity Framework Core) is not used instead.
             return (from scope in Scopes.AsTracking()
                     where Enumerable.Contains(names, scope.Name)
-                    select scope).AsAsyncEnumerable();
+                    select scope).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -218,7 +218,7 @@ namespace OpenIddict.EntityFrameworkCore
             {
                 var scopes = (from scope in Scopes.AsTracking()
                               where scope.Resources!.Contains(resource)
-                              select scope).AsAsyncEnumerable();
+                              select scope).AsAsyncEnumerable(cancellationToken);
 
                 await foreach (var scope in scopes)
                 {
@@ -281,7 +281,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var property in document.RootElement.EnumerateObject())
                 {
-                    builder[CultureInfo.GetCultureInfo(property.Name)] = property.Value.GetString();
+                    var value = property.Value.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder[CultureInfo.GetCultureInfo(property.Name)] = value;
                 }
 
                 return builder.ToImmutable();
@@ -327,7 +333,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var property in document.RootElement.EnumerateObject())
                 {
-                    builder[CultureInfo.GetCultureInfo(property.Name)] = property.Value.GetString();
+                    var value = property.Value.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder[CultureInfo.GetCultureInfo(property.Name)] = value;
                 }
 
                 return builder.ToImmutable();
@@ -419,7 +431,13 @@ namespace OpenIddict.EntityFrameworkCore
 
                 foreach (var element in document.RootElement.EnumerateArray())
                 {
-                    builder.Add(element.GetString());
+                    var value = element.GetString();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    builder.Add(value);
                 }
 
                 return builder.ToImmutable();
@@ -458,7 +476,7 @@ namespace OpenIddict.EntityFrameworkCore
                 query = query.Take(count.Value);
             }
 
-            return query.AsAsyncEnumerable();
+            return query.AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -471,7 +489,7 @@ namespace OpenIddict.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(query));
             }
 
-            return query(Scopes.AsTracking(), state).AsAsyncEnumerable();
+            return query(Scopes.AsTracking(), state).AsAsyncEnumerable(cancellationToken);
         }
 
         /// <inheritdoc/>
